@@ -22,6 +22,96 @@ function espaceDe(request, url) {
   return propre || "principal";
 }
 
+function decodeEntities(s) {
+  return s.replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/\\\//g, "/");
+}
+
+// Extraction pour Immostreet : chaque annonce porte un attribut
+// data-bookmark-data en JSON (ville, prix, lien réel vers homegate.ch...),
+// complété par le texte visible juste après (adresse, pièces, surface).
+// Structure vérifiée sur une vraie capture le 10.09.2026, pas devinée.
+function extraireImmostreet(html) {
+  const resultats = [];
+  const re = /data-bookmark-id="(\d+)" data-bookmark-data="([^"]+)"/g;
+  let m;
+  while ((m = re.exec(html)) !== null) {
+    let data;
+    try {
+      data = JSON.parse(decodeEntities(m[2]));
+    } catch (e) {
+      continue;
+    }
+    const fenetre = html.slice(m.index, m.index + 2500);
+    const locMatch = fenetre.match(/<div class="location">([^<]+)<\/div>/);
+    const roomsMatch = fenetre.match(/<li class="item -muted">([\d.,]+)\s*Pi[eè]ces<\/li>/);
+    const surfaceMatch = fenetre.match(/<li class="item -muted">(\d+)\s*m<sup>2<\/sup>/);
+    const titleMatch = fenetre.match(/<h2 class="title">([^<]+)<\/h2>/);
+
+    resultats.push({
+      external_id: m[1],
+      url: (data.link || "").replace(/^href:/, ""),
+      image: (data.thumbnail || "").replace(/^src:/, ""),
+      title: titleMatch ? titleMatch[1].trim() : data.headline || "",
+      address: locMatch ? locMatch[1].trim() : data.headline || "",
+      locality: data.city || null,
+      zip: data.zip || null,
+      loyer_brut: typeof data.price === "number" ? data.price : null,
+      rooms: roomsMatch ? parseFloat(roomsMatch[1].replace(",", ".")) : null,
+      surface: surfaceMatch ? parseFloat(surfaceMatch[1]) : null,
+    });
+  }
+  return resultats;
+}
+
+// Clé de dédoublonnage : jamais dérivée d'une seule valeur partageable
+// (URL de repli) — cf. bug vécu sur le projet vente. On préfère
+// localité+pièces+surface ; le repli utilise source+identifiant interne,
+// jamais l'URL seule.
+function bienKey(locality, rooms, surface, sourceId, externalId) {
+  if (locality && rooms != null && surface != null) {
+    return `${locality.toLowerCase()}|appartement|${rooms}|${surface}`;
+  }
+  return `repli:${sourceId}:${externalId}`;
+}
+
+async function stockerAnnonce(db, sourceId, item) {
+  const now = new Date().toISOString();
+  await db
+    .prepare(
+      `INSERT INTO listings (source_id, external_id, url, title, image_url, locality, loyer_brut, rooms, surface, address, status, first_seen, last_seen)
+       VALUES (?,?,?,?,?,?,?,?,?,?,'active',?,?)
+       ON CONFLICT(source_id, external_id) DO UPDATE SET
+         url=excluded.url, title=excluded.title, image_url=excluded.image_url,
+         locality=excluded.locality, loyer_brut=excluded.loyer_brut, rooms=excluded.rooms,
+         surface=excluded.surface, address=excluded.address, status='active', last_seen=excluded.last_seen, missing_since=NULL`
+    )
+    .bind(
+      sourceId, item.external_id, item.url, item.title, item.image,
+      item.locality, item.loyer_brut, item.rooms, item.surface, item.address,
+      now, now
+    )
+    .run();
+
+  const key = bienKey(item.locality, item.rooms, item.surface, sourceId, item.external_id);
+  const loyerM2 = item.surface && item.loyer_brut ? item.loyer_brut / item.surface : null;
+  const listingRow = await db
+    .prepare("SELECT id FROM listings WHERE source_id=? AND external_id=?")
+    .bind(sourceId, item.external_id)
+    .all();
+  const listingId = listingRow.results[0] && listingRow.results[0].id;
+
+  await db
+    .prepare(
+      `INSERT INTO biens (id, locality, type, rooms, surface, best_listing_id, loyer_m2, status, last_updated)
+       VALUES (?,?,?,?,?,?,?,'actif',?)
+       ON CONFLICT(id) DO UPDATE SET
+         locality=excluded.locality, rooms=excluded.rooms, surface=excluded.surface,
+         best_listing_id=excluded.best_listing_id, loyer_m2=excluded.loyer_m2, status='actif', last_updated=excluded.last_updated`
+    )
+    .bind(key, item.locality, "appartement", item.rooms, item.surface, listingId, loyerM2, now)
+    .run();
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -38,21 +128,58 @@ export default {
       // --- Ingestion brute depuis GitHub Actions (une route, réutilisée du projet vente) ---
       if (url.pathname === "/api/ingest-raw" && request.method === "POST") {
         const body = await request.json();
-        // Extraction spécifique aux sources : à construire avec la première
-        // source de bout en bout (section 9, étape 4). Pour l'instant on
-        // journalise la capture pour pouvoir la sonder, sans extraire.
+        const sourceName = body.source_name || "inconnue";
+        const html = String(body.html || "");
+
         try {
           await db
             .prepare(
               "INSERT INTO debug_captures (source_name, url, html, captured_at) VALUES (?,?,?,?) " +
                 "ON CONFLICT(source_name) DO UPDATE SET url=excluded.url, html=excluded.html, captured_at=excluded.captured_at"
             )
-            .bind(body.source_name || "inconnue", body.url || "", String(body.html || "").slice(0, 300000), new Date().toISOString())
+            .bind(sourceName, body.url || "", html.slice(0, 900000), new Date().toISOString())
             .run();
         } catch (e) {
           return json({ ok: false, stage: "debug_capture", error: String(e && e.message ? e.message : e) }, 500);
         }
-        return json({ ok: true, note: "capture enregistrée, extraction non encore implémentée" });
+
+        const srcRes = await db.prepare("SELECT * FROM sources WHERE name=?").bind(sourceName).all();
+        const source = srcRes.results[0];
+        if (!source) {
+          return json({ ok: true, note: "source inconnue, capture enregistrée seulement" });
+        }
+
+        let config = {};
+        try {
+          config = JSON.parse(source.config_json || "{}");
+        } catch (e) {}
+
+        let items = [];
+        if (config.adapter === "immostreet_bookmark") {
+          items = extraireImmostreet(html);
+        }
+
+        for (const item of items) {
+          try {
+            await stockerAnnonce(db, source.id, item);
+          } catch (e) {
+            // on continue les autres annonces même si une échoue
+          }
+        }
+
+        await db
+          .prepare(
+            "UPDATE sources SET last_checked=?, last_productive_count=?, state=?, last_error=NULL WHERE id=?"
+          )
+          .bind(
+            new Date().toISOString(),
+            items.length,
+            items.length > 0 ? "productive" : "accessible_sans_extraction",
+            source.id
+          )
+          .run();
+
+        return json({ ok: true, source: sourceName, annonces_extraites: items.length });
       }
 
       // --- Préférences (critères de recherche) ---
