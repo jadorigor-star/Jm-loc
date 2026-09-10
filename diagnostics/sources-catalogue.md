@@ -4,6 +4,13 @@ Consigner chaque agence/portail sondé, même inexploitable, avec date et verdic
 Verdicts possibles : `productive`, `accessible` (répond mais rien extrait), `js_only`
 (rendu JavaScript requis), `prix_sur_demande`, `bloquee` (anti-robot), `morte`.
 
+## Sources en production
+
+| Source | Statut | Détail |
+|---|---|---|
+| **Immostreet** (canton Genève, location) | ✅ **Productive** | 200 annonces/collecte (10 pages), 39 communes, extraction via `data-bookmark-data`. Mis en prod le 10.09.2026. |
+
+
 | Source | Portail | Date sondée | Verdict | Notes |
 |---|---|---|---|---|
 | Livit SA | immoscout24 | à sonder | candidate | Régie nationale, active à Genève. Insérée en base (désactivée), config adaptée `RENT`. Champs loyer non vérifiés — à confirmer par sonde. |
