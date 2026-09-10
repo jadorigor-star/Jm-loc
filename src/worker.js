@@ -165,13 +165,13 @@ function extraireRosset(html) {
 // Vérifié 11.09.2026.
 function extraireRegieFonciere(html) {
   var resultats = [];
-  var re = /<a href="(\/layout\/objets_details\.php\?objet_id=\d+[^"]*)"[^>]*class="[^"]*"[\s\S]{0,50}?<div class="objetbox_infos">([\s\S]{0,600}?)<\/div>/g;
+  var re = /<a href="(\/layout\/objets_details\.php\?objet_id=\d+[^"]*)"[^>]*class="[^"]*"[\s\S]{0,400}?<div class="objetbox_infos">([\s\S]{0,600}?)<\/div>/g;
   var m;
   while ((m = re.exec(html)) !== null) {
     var bloc = m[2];
     var villeMatch = bloc.match(/<h2[^>]*>([^<]+)<\/h2>/);
     var piecesMatch = bloc.match(/([\d.,]+)\s*pi[eè]ces?/i);
-    var surfaceMatch = bloc.match(/(\d+)\s*<\s*(\d+)?\s*m<sup>2<\/sup>|(\d+)\s*m<sup>2<\/sup>/);
+    var surfaceMatch = bloc.match(/(?:\d+\s*(?:&lt;|<)\s*)?(\d+)\s*m<sup>2<\/sup>/);
     var prixMatch = bloc.match(/class="prix">CHF ([\d'.,]+)\.-/);
     var idMatch = m[1].match(/objet_id=(\d+)/);
 
@@ -182,7 +182,7 @@ function extraireRegieFonciere(html) {
       locality: villeMatch ? villeMatch[1].trim() : null,
       address: villeMatch ? villeMatch[1].trim() : null,
       loyer_brut: prixMatch ? parseFloat(prixMatch[1].replace(/'/g, "").replace(",", ".")) : null,
-      surface: surfaceMatch ? parseFloat(surfaceMatch[2] || surfaceMatch[3] || surfaceMatch[1]) : null,
+      surface: surfaceMatch ? parseFloat(surfaceMatch[1]) : null,
       rooms: piecesMatch ? parseFloat(piecesMatch[1].replace(",", ".")) : null,
       image: null,
     });
