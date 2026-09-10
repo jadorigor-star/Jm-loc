@@ -24,9 +24,10 @@
     -webkit-font-smoothing: antialiased;
   }
   a { color: inherit; }
+  button { font-family: inherit; }
 
   header {
-    padding: 28px 20px 18px;
+    padding: 28px 20px 0;
     border-bottom: 1px solid var(--gris-clair);
   }
   .marque {
@@ -35,6 +36,7 @@
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 6px 16px;
+    padding-bottom: 16px;
   }
   .marque h1 {
     font-size: 20px;
@@ -48,6 +50,25 @@
     color: var(--gris);
     font-variant-numeric: tabular-nums;
   }
+
+  .onglets {
+    display: flex;
+    gap: 4px;
+  }
+  .onglet {
+    border: none;
+    background: none;
+    padding: 10px 4px;
+    margin-right: 20px;
+    font-size: 14px;
+    color: var(--gris);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    position: relative;
+    top: 1px;
+  }
+  .onglet.actif { color: var(--encre); border-bottom-color: var(--leman); font-weight: 600; }
+  .onglet .n { color: var(--gris); font-weight: 400; font-variant-numeric: tabular-nums; }
 
   .filtres {
     padding: 16px 20px;
@@ -67,7 +88,7 @@
     color: var(--gris);
     letter-spacing: 0.01em;
   }
-  .champ input {
+  .champ input, .champ select {
     border: none;
     border-bottom: 1px solid var(--encre);
     background: transparent;
@@ -78,7 +99,8 @@
     width: 110px;
     font-variant-numeric: tabular-nums;
   }
-  .champ input:focus { outline: none; border-bottom: 2px solid var(--leman); }
+  .champ select { width: auto; padding-right: 4px; }
+  .champ input:focus, .champ select:focus { outline: none; border-bottom: 2px solid var(--leman); }
   .champ.large input { width: 180px; }
   .reinit {
     border: none;
@@ -90,6 +112,45 @@
     padding: 6px 0;
   }
   .reinit:hover { color: var(--encre); }
+
+  .menu-communes { position: relative; }
+  .menu-communes > button {
+    border: none;
+    border-bottom: 1px solid var(--encre);
+    background: transparent;
+    font-size: 15px;
+    font-family: inherit;
+    color: var(--encre);
+    padding: 3px 0;
+    cursor: pointer;
+    text-align: left;
+  }
+  .panneau-communes {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 8px;
+    background: var(--papier);
+    border: 1px solid var(--gris-clair);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    padding: 10px;
+    z-index: 10;
+    width: 280px;
+    max-height: 320px;
+    overflow-y: auto;
+    columns: 2;
+    column-gap: 12px;
+  }
+  .panneau-communes.ouvert { display: block; }
+  .panneau-communes label {
+    display: block;
+    font-size: 13px;
+    padding: 3px 0;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .panneau-communes input { margin-right: 6px; }
 
   main { padding: 4px 20px 60px; }
 
@@ -135,12 +196,13 @@
   .actions button {
     border: 1px solid var(--gris-clair);
     background: var(--papier);
-    width: 30px;
     height: 30px;
+    padding: 0 10px;
     font-size: 15px;
     cursor: pointer;
     color: var(--gris);
   }
+  .actions button.icone { width: 30px; padding: 0; }
   .actions button:hover { border-color: var(--encre); color: var(--encre); }
   .actions button.actif { color: var(--leman); border-color: var(--leman); }
   .actions button.retirer:hover { color: var(--alerte); border-color: var(--alerte); }
@@ -163,6 +225,7 @@
     .carac { grid-area: carac; }
     .commune { display: none; }
     .contenu { grid-area: contenu; }
+    .panneau-communes { width: 220px; columns: 1; left: auto; right: 0; }
   }
 </style>
 </head>
@@ -173,9 +236,14 @@
     <h1>jm<span>·</span>loc</h1>
     <div class="compteur" id="compteur">chargement…</div>
   </div>
+  <div class="onglets">
+    <button class="onglet actif" data-onglet="toutes">Toutes</button>
+    <button class="onglet" data-onglet="retenues">Retenues <span class="n" id="n-retenues"></span></button>
+    <button class="onglet" data-onglet="ecartees">Écartées <span class="n" id="n-ecartees"></span></button>
+  </div>
 </header>
 
-<div class="filtres">
+<div class="filtres" id="barre-filtres">
   <div class="champ">
     <label for="f-loyer">Loyer max, CHF</label>
     <input id="f-loyer" type="number" inputmode="numeric" />
@@ -184,9 +252,21 @@
     <label for="f-pieces">Pièces min</label>
     <input id="f-pieces" type="number" inputmode="numeric" step="0.5" />
   </div>
-  <div class="champ large">
-    <label for="f-commune">Commune</label>
-    <input id="f-commune" type="text" placeholder="toutes" />
+  <div class="champ menu-communes">
+    <label>Communes exclues</label>
+    <button id="bouton-communes" type="button">Aucune</button>
+    <div class="panneau-communes" id="panneau-communes"></div>
+  </div>
+  <div class="champ">
+    <label for="f-tri">Trier par</label>
+    <select id="f-tri">
+      <option value="recent">Plus récentes</option>
+      <option value="loyer-asc">Loyer croissant</option>
+      <option value="loyer-desc">Loyer décroissant</option>
+      <option value="m2-asc">Prix au m² croissant</option>
+      <option value="surface-desc">Surface décroissante</option>
+      <option value="pieces-desc">Pièces décroissantes</option>
+    </select>
   </div>
   <button class="reinit" id="reinit">Réinitialiser</button>
 </div>
@@ -197,10 +277,19 @@
 </main>
 
 <script>
-const etat = { biens: [], favoris: new Set(), discarded: new Set(), prefs: {} };
+var COMMUNES = [
+  "Aire-la-Ville","Anières","Avully","Avusy","Bardonnex","Bellevue","Bernex","Carouge",
+  "Cartigny","Céligny","Chancy","Chêne-Bougeries","Chêne-Bourg","Choulex","Collex-Bossy",
+  "Collonge-Bellerive","Cologny","Confignon","Corsier","Dardagny","Genève","Genthod",
+  "Le Grand-Saconnex","Gy","Hermance","Jussy","Laconnex","Lancy","Meinier","Meyrin","Onex",
+  "Perly-Certoux","Plan-les-Ouates","Pregny-Chambésy","Presinge","Puplinge","Russin",
+  "Satigny","Soral","Thônex","Troinex","Vandœuvres","Vernier","Versoix","Veyrier"
+];
+
+var etat = { biens: [], favoris: new Set(), discarded: new Set(), prefs: {}, communesExclues: new Set(), onglet: "toutes" };
 
 async function api(chemin, options) {
-  const res = await fetch(chemin, options);
+  var res = await fetch(chemin, options);
   return res.json();
 }
 
@@ -209,76 +298,140 @@ function formatCHF(n) {
   return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, "'") + ".–";
 }
 
-function rendre() {
-  const loyerMax = parseFloat(document.getElementById("f-loyer").value) || Infinity;
-  const piecesMin = parseFloat(document.getElementById("f-pieces").value) || 0;
-  const communeFiltre = document.getElementById("f-commune").value.trim().toLowerCase();
-
-  const filtres = etat.biens.filter((b) => {
-    if (etat.discarded.has(b.bien_id)) return false;
-    if (b.loyer_brut != null && b.loyer_brut > loyerMax) return false;
-    if (b.rooms != null && b.rooms < piecesMin) return false;
-    if (communeFiltre && !(b.locality || "").toLowerCase().includes(communeFiltre)) return false;
-    return true;
+function construirePanneauCommunes() {
+  var panneau = document.getElementById("panneau-communes");
+  panneau.innerHTML = COMMUNES.map(function (c) {
+    return '<label><input type="checkbox" value="' + c + '" ' + (etat.communesExclues.has(c) ? "checked" : "") + '/> ' + c + '</label>';
+  }).join("");
+  panneau.querySelectorAll("input").forEach(function (cb) {
+    cb.addEventListener("change", function () {
+      if (cb.checked) etat.communesExclues.add(cb.value);
+      else etat.communesExclues.delete(cb.value);
+      majBoutonCommunes();
+      sauverPreferences();
+      rendre();
+    });
   });
+}
 
-  document.getElementById("compteur").textContent =
-    filtres.length + " annonce" + (filtres.length > 1 ? "s" : "") + " sur " + etat.biens.length;
+function majBoutonCommunes() {
+  var n = etat.communesExclues.size;
+  document.getElementById("bouton-communes").textContent =
+    n === 0 ? "Aucune" : n + " exclue" + (n > 1 ? "s" : "");
+}
 
-  const liste = document.getElementById("liste");
-  const vide = document.getElementById("vide");
+function trier(liste, mode) {
+  var copie = liste.slice();
+  function v(x, fallback) { return x == null ? fallback : x; }
+  if (mode === "loyer-asc") return copie.sort(function (a, b) { return v(a.loyer_brut, Infinity) - v(b.loyer_brut, Infinity); });
+  if (mode === "loyer-desc") return copie.sort(function (a, b) { return v(b.loyer_brut, -Infinity) - v(a.loyer_brut, -Infinity); });
+  if (mode === "m2-asc") return copie.sort(function (a, b) { return v(a.loyer_m2, Infinity) - v(b.loyer_m2, Infinity); });
+  if (mode === "surface-desc") return copie.sort(function (a, b) { return v(b.surface, -Infinity) - v(a.surface, -Infinity); });
+  if (mode === "pieces-desc") return copie.sort(function (a, b) { return v(b.rooms, -Infinity) - v(a.rooms, -Infinity); });
+  return copie;
+}
+
+function rendre() {
+  var loyerMax = parseFloat(document.getElementById("f-loyer").value) || Infinity;
+  var piecesMin = parseFloat(document.getElementById("f-pieces").value) || 0;
+  var tri = document.getElementById("f-tri").value;
+  var onglet = etat.onglet;
+
+  document.getElementById("barre-filtres").style.display = onglet === "ecartees" ? "none" : "flex";
+
+  var base = etat.biens;
+  if (onglet === "toutes") {
+    base = base.filter(function (b) { return !etat.discarded.has(b.bien_id); });
+  } else if (onglet === "retenues") {
+    base = base.filter(function (b) { return etat.favoris.has(b.bien_id); });
+  } else if (onglet === "ecartees") {
+    base = base.filter(function (b) { return etat.discarded.has(b.bien_id); });
+  }
+
+  var filtres = base;
+  if (onglet !== "ecartees") {
+    filtres = base.filter(function (b) {
+      if (b.loyer_brut != null && b.loyer_brut > loyerMax) return false;
+      if (b.rooms != null && b.rooms < piecesMin) return false;
+      if (b.locality && etat.communesExclues.has(b.locality)) return false;
+      return true;
+    });
+    filtres = trier(filtres, tri);
+  }
+
+  document.getElementById("n-retenues").textContent = "(" + etat.biens.filter(function (b) { return etat.favoris.has(b.bien_id); }).length + ")";
+  document.getElementById("n-ecartees").textContent = "(" + etat.biens.filter(function (b) { return etat.discarded.has(b.bien_id); }).length + ")";
+  document.getElementById("compteur").textContent = filtres.length + " annonce" + (filtres.length > 1 ? "s" : "");
+
+  var liste = document.getElementById("liste");
+  var vide = document.getElementById("vide");
   liste.innerHTML = "";
 
   if (filtres.length === 0) {
     vide.style.display = "block";
+    vide.textContent = onglet === "ecartees"
+      ? "Rien d'écarté pour l'instant."
+      : onglet === "retenues"
+      ? "Aucun favori pour l'instant — l'étoile sur une annonce l'ajoute ici."
+      : "Aucune annonce ne correspond à ces critères pour l'instant.";
     return;
   }
   vide.style.display = "none";
 
-  for (const b of filtres) {
-    const ligne = document.createElement("div");
+  filtres.forEach(function (b) {
+    var ligne = document.createElement("div");
     ligne.className = "ligne";
+    var estFavori = etat.favoris.has(b.bien_id);
 
-    const estFavori = etat.favoris.has(b.bien_id);
+    var actionsHtml = onglet === "ecartees"
+      ? '<button class="restaurer" data-id="' + b.bien_id + '">Restaurer</button>'
+      : '<button class="icone favori ' + (estFavori ? "actif" : "") + '" title="Favori" data-id="' + b.bien_id + '">' + (estFavori ? "\u2605" : "\u2606") + '</button>' +
+        '<button class="icone retirer" title="Ne plus voir" data-id="' + b.bien_id + '">\u2715</button>';
 
-    ligne.innerHTML = `
-      <div class="loyer">${formatCHF(b.loyer_brut)}</div>
-      <div class="carac">${b.rooms != null ? b.rooms + " p." : "—"} ${b.surface != null ? "· " + b.surface + " m²" : ""}</div>
-      <div class="commune">${b.locality || "—"}</div>
-      <div class="contenu">
-        <a href="${b.url || "#"}" target="_blank" rel="noopener">${b.title || "Annonce sans titre"}</a>
-        <span class="source">${b.locality ? b.locality + " · " : ""}${b.source || ""}</span>
-      </div>
-      <div class="actions">
-        <button class="favori ${estFavori ? "actif" : ""}" title="Favori" data-id="${b.bien_id}">${estFavori ? "★" : "☆"}</button>
-        <button class="retirer" title="Ne plus voir" data-id="${b.bien_id}">✕</button>
-      </div>
-    `;
+    ligne.innerHTML =
+      '<div class="loyer">' + formatCHF(b.loyer_brut) + '</div>' +
+      '<div class="carac">' + (b.rooms != null ? b.rooms + " p." : "—") + ' ' + (b.surface != null ? "· " + b.surface + " m²" : "") + '</div>' +
+      '<div class="commune">' + (b.locality || "—") + '</div>' +
+      '<div class="contenu">' +
+        '<a href="' + (b.url || "#") + '" target="_blank" rel="noopener">' + (b.title || "Annonce sans titre") + '</a>' +
+        '<span class="source">' + (b.locality ? b.locality + " · " : "") + (b.source || "") + '</span>' +
+      '</div>' +
+      '<div class="actions">' + actionsHtml + '</div>';
     liste.appendChild(ligne);
-  }
+  });
 
-  liste.querySelectorAll(".favori").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const id = btn.dataset.id;
-      const estDeja = etat.favoris.has(id);
-      if (estDeja) { etat.favoris.delete(id); } else { etat.favoris.add(id); }
+  liste.querySelectorAll(".favori").forEach(function (btn) {
+    btn.addEventListener("click", async function () {
+      var id = btn.dataset.id;
+      var estDeja = etat.favoris.has(id);
+      if (estDeja) etat.favoris.delete(id); else etat.favoris.add(id);
       await api("/api/favoris", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+        method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ bien_id: id, retirer: estDeja }),
       });
       rendre();
     });
   });
 
-  liste.querySelectorAll(".retirer").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const id = btn.dataset.id;
+  liste.querySelectorAll(".retirer").forEach(function (btn) {
+    btn.addEventListener("click", async function () {
+      var id = btn.dataset.id;
       etat.discarded.add(id);
       await api("/api/discarded", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+        method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ bien_id: id }),
+      });
+      rendre();
+    });
+  });
+
+  liste.querySelectorAll(".restaurer").forEach(function (btn) {
+    btn.addEventListener("click", async function () {
+      var id = btn.dataset.id;
+      etat.discarded.delete(id);
+      await api("/api/discarded", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ bien_id: id, retirer: true }),
       });
       rendre();
     });
@@ -288,41 +441,64 @@ function rendre() {
 async function sauverPreferences() {
   etat.prefs.loyer_max = parseFloat(document.getElementById("f-loyer").value) || null;
   etat.prefs.pieces_min = parseFloat(document.getElementById("f-pieces").value) || null;
-  const corps = Object.assign({}, etat.prefs, {
-    communes_exclues: JSON.parse(etat.prefs.communes_exclues_json || "[]"),
-  });
+  var corps = Object.assign({}, etat.prefs, { communes_exclues: Array.from(etat.communesExclues) });
   await api("/api/preferences", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
+    method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify(corps),
   });
 }
 
 async function init() {
-  const [biens, favoris, discarded, prefs] = await Promise.all([
-    api("/api/biens"),
-    api("/api/favoris"),
-    api("/api/discarded"),
-    api("/api/preferences"),
+  var resultats = await Promise.all([
+    api("/api/biens"), api("/api/favoris"), api("/api/discarded"), api("/api/preferences"),
   ]);
-  etat.biens = biens;
-  etat.favoris = new Set(favoris);
-  etat.discarded = new Set(discarded);
-  etat.prefs = prefs;
+  etat.biens = resultats[0];
+  etat.favoris = new Set(resultats[1]);
+  etat.discarded = new Set(resultats[2]);
+  etat.prefs = resultats[3];
+  try {
+    etat.communesExclues = new Set(JSON.parse(etat.prefs.communes_exclues_json || "[]"));
+  } catch (e) { etat.communesExclues = new Set(); }
 
-  document.getElementById("f-loyer").value = prefs.loyer_max || "";
-  document.getElementById("f-pieces").value = prefs.pieces_min || "";
+  document.getElementById("f-loyer").value = etat.prefs.loyer_max || "";
+  document.getElementById("f-pieces").value = etat.prefs.pieces_min || "";
 
-  document.getElementById("f-loyer").addEventListener("input", () => { rendre(); });
+  construirePanneauCommunes();
+  majBoutonCommunes();
+
+  document.getElementById("f-loyer").addEventListener("input", rendre);
   document.getElementById("f-loyer").addEventListener("change", sauverPreferences);
-  document.getElementById("f-pieces").addEventListener("input", () => { rendre(); });
+  document.getElementById("f-pieces").addEventListener("input", rendre);
   document.getElementById("f-pieces").addEventListener("change", sauverPreferences);
-  document.getElementById("f-commune").addEventListener("input", rendre);
-  document.getElementById("reinit").addEventListener("click", () => {
+  document.getElementById("f-tri").addEventListener("change", rendre);
+
+  document.getElementById("bouton-communes").addEventListener("click", function (e) {
+    e.stopPropagation();
+    document.getElementById("panneau-communes").classList.toggle("ouvert");
+  });
+  document.addEventListener("click", function () {
+    document.getElementById("panneau-communes").classList.remove("ouvert");
+  });
+  document.getElementById("panneau-communes").addEventListener("click", function (e) { e.stopPropagation(); });
+
+  document.getElementById("reinit").addEventListener("click", function () {
     document.getElementById("f-loyer").value = "";
     document.getElementById("f-pieces").value = "";
-    document.getElementById("f-commune").value = "";
+    document.getElementById("f-tri").value = "recent";
+    etat.communesExclues.clear();
+    construirePanneauCommunes();
+    majBoutonCommunes();
+    sauverPreferences();
     rendre();
+  });
+
+  document.querySelectorAll(".onglet").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.querySelectorAll(".onglet").forEach(function (b) { b.classList.remove("actif"); });
+      btn.classList.add("actif");
+      etat.onglet = btn.dataset.onglet;
+      rendre();
+    });
   });
 
   rendre();

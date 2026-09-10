@@ -349,10 +349,14 @@ export default {
 
       if (url.pathname === "/api/discarded" && request.method === "POST") {
         const body = await request.json();
-        await db
-          .prepare("INSERT INTO discarded (espace_id, bien_id) VALUES (?,?) ON CONFLICT(espace_id, bien_id) DO NOTHING")
-          .bind(espace, body.bien_id)
-          .run();
+        if (body.retirer) {
+          await db.prepare("DELETE FROM discarded WHERE espace_id=? AND bien_id=?").bind(espace, body.bien_id).run();
+        } else {
+          await db
+            .prepare("INSERT INTO discarded (espace_id, bien_id) VALUES (?,?) ON CONFLICT(espace_id, bien_id) DO NOTHING")
+            .bind(espace, body.bien_id)
+            .run();
+        }
         return json({ ok: true });
       }
 
