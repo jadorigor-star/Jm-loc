@@ -1,1 +1,6 @@
-{"url": "https://appt.ch/regies/bersier", "status": "500", "length": 984, "captured_at": "2026-09-10T21:17:11Z"}
+{
+  "url": "https://appt.ch/regies/bersier",
+  "status": 500,
+  "length": 937,
+  "captured_at": "2026-09-10T21:18:37.021Z"
+}
