@@ -130,6 +130,66 @@ function extraireRegisseurs(html) {
   return resultats;
 }
 
+// Extraction pour Rosset (plateforme ImmoMig) : cartes avec classes
+// caract_location/caract_price/caract_surface/caract_rooms. Vérifié 11.09.2026.
+function extraireRosset(html) {
+  var resultats = [];
+  var re = /<a class="box_inner box_inner_link" href="([^"]+)"/g;
+  var m;
+  while ((m = re.exec(html)) !== null) {
+    if (!/a-louer-appartement|a-louer-maison/.test(m[1])) continue;
+    var bloc = html.slice(m.index, m.index + 4000);
+    var titleMatch = bloc.match(/<div class="h2">([^<]+)<\/div>/);
+    var locMatch = bloc.match(/caract_location[\s\S]{0,400}?<div class="value">\s*([^<]+?)\s*<\/div>/);
+    var priceMatch = bloc.match(/caract_price[\s\S]{0,400}?CHF&nbsp;([\d'.,]+)\.-\s*\/mois/);
+    var surfaceMatch = bloc.match(/caract_surface[\s\S]{0,500}?<span class="value">~?\s*(\d+)\s*m/);
+    var roomsMatch = bloc.match(/caract_rooms[\s\S]{0,500}?<span class="value">([\d.,]+)<\/span>/);
+    var idMatch = m[1].match(/-(\d+)\??/);
+
+    resultats.push({
+      external_id: idMatch ? idMatch[1] : String(m.index),
+      url: "https://immo.rosset.ch" + m[1].replace(/&amp;/g, "&"),
+      title: titleMatch ? titleMatch[1].trim() : "",
+      locality: locMatch ? locMatch[1].trim() : null,
+      address: locMatch ? locMatch[1].trim() : null,
+      loyer_brut: priceMatch ? parseFloat(priceMatch[1].replace(/'/g, "").replace(",", ".")) : null,
+      surface: surfaceMatch ? parseFloat(surfaceMatch[1]) : null,
+      rooms: roomsMatch ? parseFloat(roomsMatch[1].replace(",", ".")) : null,
+      image: null,
+    });
+  }
+  return resultats;
+}
+
+// Extraction pour Régie Foncière : site PHP maison, cartes "objetbox".
+// Vérifié 11.09.2026.
+function extraireRegieFonciere(html) {
+  var resultats = [];
+  var re = /<a href="(\/layout\/objets_details\.php\?objet_id=\d+[^"]*)"[^>]*class="[^"]*"[\s\S]{0,50}?<div class="objetbox_infos">([\s\S]{0,600}?)<\/div>/g;
+  var m;
+  while ((m = re.exec(html)) !== null) {
+    var bloc = m[2];
+    var villeMatch = bloc.match(/<h2[^>]*>([^<]+)<\/h2>/);
+    var piecesMatch = bloc.match(/([\d.,]+)\s*pi[eè]ces?/i);
+    var surfaceMatch = bloc.match(/(\d+)\s*<\s*(\d+)?\s*m<sup>2<\/sup>|(\d+)\s*m<sup>2<\/sup>/);
+    var prixMatch = bloc.match(/class="prix">CHF ([\d'.,]+)\.-/);
+    var idMatch = m[1].match(/objet_id=(\d+)/);
+
+    resultats.push({
+      external_id: idMatch ? idMatch[1] : String(m.index),
+      url: "https://regiefonciere.ch" + m[1].replace(/&amp;/g, "&"),
+      title: villeMatch ? villeMatch[1].trim() : "",
+      locality: villeMatch ? villeMatch[1].trim() : null,
+      address: villeMatch ? villeMatch[1].trim() : null,
+      loyer_brut: prixMatch ? parseFloat(prixMatch[1].replace(/'/g, "").replace(",", ".")) : null,
+      surface: surfaceMatch ? parseFloat(surfaceMatch[2] || surfaceMatch[3] || surfaceMatch[1]) : null,
+      rooms: piecesMatch ? parseFloat(piecesMatch[1].replace(",", ".")) : null,
+      image: null,
+    });
+  }
+  return resultats;
+}
+
 function bienKey(locality, rooms, surface, sourceId, externalId) {
   if (locality && rooms != null && surface != null) {
     return `${locality.toLowerCase()}|appartement|${rooms}|${surface}`;
@@ -224,6 +284,10 @@ export default {
           items = extraireApimo(html);
         } else if (config.adapter === "regisseurs_wp_card") {
           items = extraireRegisseurs(html);
+        } else if (config.adapter === "rosset_immomig") {
+          items = extraireRosset(html);
+        } else if (config.adapter === "regiefonciere_card") {
+          items = extraireRegieFonciere(html);
         }
 
         for (const item of items) {
