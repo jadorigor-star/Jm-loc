@@ -9,6 +9,7 @@ Verdicts possibles : `productive`, `accessible` (répond mais rien extrait), `js
 | Source | Statut | Détail |
 |---|---|---|
 | **Immostreet** (canton Genève, location) | ✅ **Productive** | 200 annonces/collecte (10 pages), 39 communes, extraction via `data-bookmark-data`. Mis en prod le 10.09.2026. |
+| **Comptoir Immobilier SA** | ✅ **Productive** | 25 annonces, plateforme Apimo (extracteur générique réutilisable pour d'autres régies sur la même plateforme). Mis en prod le 10.09.2026. |
 
 
 | Source | Portail | Date sondée | Verdict | Notes |
