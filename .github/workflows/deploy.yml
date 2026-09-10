@@ -1,0 +1,59 @@
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Contrôle — pas de résidu de compilation
+        run: |
+          if grep -RIl --include="*.js" -E "webpack_require|sourceMappingURL=data:" src/; then
+            echo "Résidu de compilation détecté dans src/" >&2
+            exit 1
+          fi
+
+      - name: Contrôle — syntaxe JS valide (Worker)
+        run: node --check src/worker.js
+
+      - name: Contrôle — JS servi au navigateur analysable
+        run: |
+          for f in $(find public -name "*.js"); do
+            echo "Vérification $f"
+            node --check "$f" || exit 1
+          done
+
+      - name: Déploiement
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
+
+      - name: Publier le diagnostic
+        if: always()
+        run: |
+          mkdir -p diagnostics
+          {
+            echo "# Déploiement"
+            echo "- commit: ${{ github.sha }}"
+            echo "- date: $(date -u +%FT%TZ)"
+            echo "- statut job: ${{ job.status }}"
+          } > diagnostics/last-deploy.md
+
+      - name: Committer le diagnostic
+        if: always()
+        run: |
+          git config user.name "jm-loc-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add diagnostics/last-deploy.md
+          git diff --staged --quiet || git commit -m "diagnostic: déploiement $(date -u +%FT%TZ)"
+          git push

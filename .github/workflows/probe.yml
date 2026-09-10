@@ -1,0 +1,88 @@
+name: probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "URL à sonder"
+        required: true
+      source_name:
+        description: "Nom de la source (pour ranger la capture)"
+        required: true
+      js_render:
+        description: "Rendu JavaScript nécessaire (navigateur complet) ?"
+        required: false
+        default: "false"
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Installer Playwright si rendu JS nécessaire
+        if: ${{ github.event.inputs.js_render == 'true' }}
+        run: |
+          npm init -y
+          npm install playwright
+          npx playwright install chromium --with-deps
+
+      - name: Sonder (navigateur réel)
+        if: ${{ github.event.inputs.js_render == 'true' }}
+        run: |
+          node -e '
+          const { chromium } = require("playwright");
+          (async () => {
+            const browser = await chromium.launch();
+            const page = await browser.newPage();
+            const resp = await page.goto(process.env.PROBE_URL, { waitUntil: "networkidle", timeout: 30000 });
+            const html = await page.content();
+            require("fs").writeFileSync("diagnostics/probe-result.html", html);
+            require("fs").writeFileSync("diagnostics/probe-result.json", JSON.stringify({
+              url: process.env.PROBE_URL, status: resp ? resp.status() : null, length: html.length,
+              captured_at: new Date().toISOString()
+            }, null, 2));
+            await browser.close();
+          })();'
+        env:
+          PROBE_URL: ${{ github.event.inputs.url }}
+
+      - name: Sonder (requête simple)
+        if: ${{ github.event.inputs.js_render != 'true' }}
+        run: |
+          mkdir -p diagnostics
+          status=$(curl -s -o diagnostics/probe-result.html -w "%{http_code}" "${{ github.event.inputs.url }}" \
+            -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+          length=$(wc -c < diagnostics/probe-result.html)
+          cat > diagnostics/probe-result.json <<EOF
+          {"url": "${{ github.event.inputs.url }}", "status": "$status", "length": $length, "captured_at": "$(date -u +%FT%TZ)"}
+          EOF
+          # Rappel : un 403 n'est pas la preuve que la page n'existe pas — le
+          # plus souvent un blocage anti-robot (section 8 de l'amorçage).
+
+      - name: Envoyer la capture au Worker (ingestion + catalogue)
+        run: |
+          curl -s -X POST "${{ vars.WORKER_URL }}/api/ingest-raw" \
+            -H "content-type: application/json" \
+            -d @<(node -e '
+              const fs=require("fs");
+              const html=fs.readFileSync("diagnostics/probe-result.html","utf8");
+              const meta=JSON.parse(fs.readFileSync("diagnostics/probe-result.json","utf8"));
+              console.log(JSON.stringify({source_name: process.env.SRC_NAME, url: meta.url, html}));
+            ')
+        env:
+          SRC_NAME: ${{ github.event.inputs.source_name }}
+
+      - name: Committer les résultats
+        run: |
+          git config user.name "jm-loc-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add diagnostics/probe-result.html diagnostics/probe-result.json
+          git commit -m "sonde: ${{ github.event.inputs.source_name }} $(date -u +%FT%TZ)" || echo "rien à committer"
+          git push

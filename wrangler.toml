@@ -1,0 +1,15 @@
+name = "jm-loc"
+main = "src/worker.js"
+compatibility_date = "2026-09-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "jm-loc"
+database_id = "f6b353be-40e7-4b96-ae6f-463997352021"
+
+# Interface servie en fichiers statiques, jamais en template string dans le
+# Worker (cf. section 8 de l'amorçage : deux pannes d'affichage sur le
+# projet vente sont venues d'un HTML en chaîne de gabarit).
+[assets]
+directory = "./public"
+binding = "ASSETS"

@@ -1,0 +1,35 @@
+name: collect
+
+on:
+  schedule:
+    # Toutes les 20 minutes — pas de Cron Triggers Cloudflare (défaut connu :
+    # arrêt silencieux). Rythme location, pas vente (section 6 de l'amorçage).
+    - cron: "*/20 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lister les sources actives
+        run: |
+          curl -s "${{ vars.WORKER_URL }}/api/sources" -o diagnostics/sources-actives.json
+          echo "Sources trouvées : $(cat diagnostics/sources-actives.json | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{const j=JSON.parse(d);console.log(j.filter(s=>s.enabled).length)})')"
+
+      - name: Note
+        run: |
+          echo "Aucune source configurée pour l'instant — ce workflow tourne et publie un diagnostic vide jusqu'à ce que la première source (section 9, étape 4) soit branchée." \
+            > diagnostics/last-collect.md
+          echo "Exécuté le $(date -u +%FT%TZ)" >> diagnostics/last-collect.md
+
+      - name: Committer le diagnostic
+        run: |
+          git config user.name "jm-loc-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add diagnostics/last-collect.md diagnostics/sources-actives.json
+          git diff --staged --quiet || git commit -m "diagnostic: collecte $(date -u +%FT%TZ)"
+          git push
