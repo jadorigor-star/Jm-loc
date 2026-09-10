@@ -68,7 +68,7 @@ jobs:
 
       - name: Envoyer la capture au Worker (ingestion + catalogue)
         run: |
-          curl -s -X POST "${{ vars.WORKER_URL }}/api/ingest-raw" \
+          curl -s -X POST "https://jm-loc.jadorigor.workers.dev/api/ingest-raw" \
             -H "content-type: application/json" \
             -d @<(node -e '
               const fs=require("fs");

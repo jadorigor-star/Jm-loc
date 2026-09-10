@@ -17,7 +17,7 @@ jobs:
 
       - name: Lister les sources actives
         run: |
-          curl -s "${{ vars.WORKER_URL }}/api/sources" -o diagnostics/sources-actives.json
+          curl -s "https://jm-loc.jadorigor.workers.dev/api/sources" -o diagnostics/sources-actives.json
           echo "Sources trouvées : $(cat diagnostics/sources-actives.json | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{const j=JSON.parse(d);console.log(j.filter(s=>s.enabled).length)})')"
 
       - name: Note
