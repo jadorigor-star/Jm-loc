@@ -143,13 +143,8 @@
     column-gap: 12px;
   }
   .panneau-communes.ouvert { display: block; }
-  .panneau-communes label {
-    display: block;
-    font-size: 13px;
-    padding: 3px 0;
-    white-space: nowrap;
-    cursor: pointer;
-  }
+  .panneau-communes label { display: block; font-size: 13px; padding: 3px 0; white-space: nowrap; cursor: pointer; }
+  .panneau-communes label.exclue { color: var(--alerte); font-weight: 600; }
   .panneau-communes input { margin-right: 6px; }
 
   main { padding: 4px 20px 60px; }
@@ -264,8 +259,11 @@
       <option value="loyer-asc">Loyer croissant</option>
       <option value="loyer-desc">Loyer décroissant</option>
       <option value="m2-asc">Prix au m² croissant</option>
+      <option value="m2-desc">Prix au m² décroissant</option>
+      <option value="surface-asc">Surface croissante</option>
       <option value="surface-desc">Surface décroissante</option>
-      <option value="pieces-desc">Pièces décroissantes</option>
+      <option value="pieces-asc">Pièces croissant</option>
+      <option value="pieces-desc">Pièces décroissant</option>
     </select>
   </div>
   <button class="reinit" id="reinit">Réinitialiser</button>
@@ -301,12 +299,14 @@ function formatCHF(n) {
 function construirePanneauCommunes() {
   var panneau = document.getElementById("panneau-communes");
   panneau.innerHTML = COMMUNES.map(function (c) {
-    return '<label><input type="checkbox" value="' + c + '" ' + (etat.communesExclues.has(c) ? "checked" : "") + '/> ' + c + '</label>';
+    var exclue = etat.communesExclues.has(c);
+    return '<label class="' + (exclue ? "exclue" : "") + '"><input type="checkbox" value="' + c + '" ' + (exclue ? "checked" : "") + '/> ' + c + '</label>';
   }).join("");
   panneau.querySelectorAll("input").forEach(function (cb) {
     cb.addEventListener("change", function () {
       if (cb.checked) etat.communesExclues.add(cb.value);
       else etat.communesExclues.delete(cb.value);
+      cb.closest("label").classList.toggle("exclue", cb.checked);
       majBoutonCommunes();
       sauverPreferences();
       rendre();
@@ -326,7 +326,10 @@ function trier(liste, mode) {
   if (mode === "loyer-asc") return copie.sort(function (a, b) { return v(a.loyer_brut, Infinity) - v(b.loyer_brut, Infinity); });
   if (mode === "loyer-desc") return copie.sort(function (a, b) { return v(b.loyer_brut, -Infinity) - v(a.loyer_brut, -Infinity); });
   if (mode === "m2-asc") return copie.sort(function (a, b) { return v(a.loyer_m2, Infinity) - v(b.loyer_m2, Infinity); });
+  if (mode === "m2-desc") return copie.sort(function (a, b) { return v(b.loyer_m2, -Infinity) - v(a.loyer_m2, -Infinity); });
+  if (mode === "surface-asc") return copie.sort(function (a, b) { return v(a.surface, Infinity) - v(b.surface, Infinity); });
   if (mode === "surface-desc") return copie.sort(function (a, b) { return v(b.surface, -Infinity) - v(a.surface, -Infinity); });
+  if (mode === "pieces-asc") return copie.sort(function (a, b) { return v(a.rooms, Infinity) - v(b.rooms, Infinity); });
   if (mode === "pieces-desc") return copie.sort(function (a, b) { return v(b.rooms, -Infinity) - v(a.rooms, -Infinity); });
   return copie;
 }
@@ -351,6 +354,7 @@ function rendre() {
   var filtres = base;
   if (onglet !== "ecartees") {
     filtres = base.filter(function (b) {
+      if (onglet === "toutes" && b.loyer_brut == null) return false;
       if (b.loyer_brut != null && b.loyer_brut > loyerMax) return false;
       if (b.rooms != null && b.rooms < piecesMin) return false;
       if (b.locality && etat.communesExclues.has(b.locality)) return false;
@@ -470,7 +474,10 @@ async function init() {
   document.getElementById("f-loyer").addEventListener("change", sauverPreferences);
   document.getElementById("f-pieces").addEventListener("input", rendre);
   document.getElementById("f-pieces").addEventListener("change", sauverPreferences);
-  document.getElementById("f-tri").addEventListener("change", rendre);
+  document.getElementById("f-tri").addEventListener("change", function () {
+    rendre();
+    document.getElementById("liste").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
 
   document.getElementById("bouton-communes").addEventListener("click", function (e) {
     e.stopPropagation();
