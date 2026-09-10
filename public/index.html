@@ -26,6 +26,12 @@
   a { color: inherit; }
   button { font-family: inherit; }
 
+  #haut {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: var(--papier);
+  }
   header {
     padding: 28px 20px 0;
     border-bottom: 1px solid var(--gris-clair);
@@ -226,6 +232,7 @@
 </head>
 <body>
 
+<div id="haut">
 <header>
   <div class="marque">
     <h1>jm<span>·</span>loc</h1>
@@ -235,6 +242,7 @@
     <button class="onglet actif" data-onglet="toutes">Toutes</button>
     <button class="onglet" data-onglet="retenues">Retenues <span class="n" id="n-retenues"></span></button>
     <button class="onglet" data-onglet="ecartees">Écartées <span class="n" id="n-ecartees"></span></button>
+    <button class="onglet" id="bouton-espace" style="margin-left:auto">Espace ⚙</button>
   </div>
 </header>
 
@@ -269,6 +277,20 @@
   <button class="reinit" id="reinit">Réinitialiser</button>
 </div>
 
+<div class="filtres" id="panneau-espace" style="display:none">
+  <div class="champ large" style="max-width:480px">
+    <label>Espace personnel</label>
+    <p style="font-size:13px;color:var(--gris);margin:2px 0 8px">
+      Vos favoris, biens écartés et réglages sont propres à cet appareil.
+      Pour les retrouver ailleurs — ou les partager avec quelqu'un — communiquez cet identifiant, ou saisissez le sien ci-dessous pour rejoindre son espace.
+    </p>
+    <div style="font-family: ui-monospace, monospace; font-size:14px; margin-bottom:8px;" id="espace-actuel"></div>
+    <input id="champ-espace" type="text" placeholder="rejoindre un autre espace" style="border:1px solid var(--gris-clair);padding:6px 8px;width:220px;font-family:inherit;font-size:14px;" />
+    <button id="bouton-rejoindre" style="border:1px solid var(--encre);background:var(--papier);padding:6px 12px;font-size:14px;cursor:pointer;margin-left:6px;">Rejoindre</button>
+  </div>
+</div>
+</div>
+
 <main>
   <div id="liste"></div>
   <div class="vide" id="vide" style="display:none">Aucune annonce ne correspond à ces critères pour l'instant.</div>
@@ -286,7 +308,27 @@ var COMMUNES = [
 
 var etat = { biens: [], favoris: new Set(), discarded: new Set(), prefs: {}, communesExclues: new Set(), onglet: "toutes" };
 
+function espaceLocal() {
+  try {
+    var e = localStorage.getItem("jm_espace");
+    if (!e) {
+      e = "esp-" + Math.random().toString(36).slice(2, 8) + Math.random().toString(36).slice(2, 6);
+      localStorage.setItem("jm_espace", e);
+    }
+    return e;
+  } catch (err) { return "principal"; }
+}
+
+function definirEspace(e) {
+  var propre = String(e || "").toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 40);
+  if (!propre) return false;
+  try { localStorage.setItem("jm_espace", propre); } catch (err) {}
+  return true;
+}
+
 async function api(chemin, options) {
+  options = options || {};
+  options.headers = Object.assign({}, options.headers || {}, { "X-Espace": espaceLocal() });
   var res = await fetch(chemin, options);
   return res.json();
 }
@@ -474,10 +516,7 @@ async function init() {
   document.getElementById("f-loyer").addEventListener("change", sauverPreferences);
   document.getElementById("f-pieces").addEventListener("input", rendre);
   document.getElementById("f-pieces").addEventListener("change", sauverPreferences);
-  document.getElementById("f-tri").addEventListener("change", function () {
-    rendre();
-    document.getElementById("liste").scrollIntoView({ behavior: "smooth", block: "start" });
-  });
+  document.getElementById("f-tri").addEventListener("change", rendre);
 
   document.getElementById("bouton-communes").addEventListener("click", function (e) {
     e.stopPropagation();
@@ -499,7 +538,21 @@ async function init() {
     rendre();
   });
 
-  document.querySelectorAll(".onglet").forEach(function (btn) {
+  document.getElementById("espace-actuel").textContent = espaceLocal();
+  document.getElementById("bouton-espace").addEventListener("click", function () {
+    var p = document.getElementById("panneau-espace");
+    p.style.display = p.style.display === "none" ? "flex" : "none";
+  });
+  document.getElementById("bouton-rejoindre").addEventListener("click", function () {
+    var champ = document.getElementById("champ-espace");
+    if (definirEspace(champ.value)) {
+      location.reload();
+    } else {
+      champ.style.borderColor = "var(--alerte)";
+    }
+  });
+
+  document.querySelectorAll(".onglet[data-onglet]").forEach(function (btn) {
     btn.addEventListener("click", function () {
       document.querySelectorAll(".onglet").forEach(function (b) { b.classList.remove("actif"); });
       btn.classList.add("actif");
