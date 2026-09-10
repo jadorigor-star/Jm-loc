@@ -1,13 +1,335 @@
 <!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8" />
-  <title>jm-loc — recherche d'appartements en location</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta charset="utf-8" />
+<title>jm-loc — location, canton de Genève</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    --papier: #FAFAF7;
+    --encre: #16191C;
+    --gris: #6B7176;
+    --gris-clair: #DADCDD;
+    --leman: #1D4E6B;
+    --leman-clair: #E7EEF1;
+    --alerte: #A83B32;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--papier);
+    color: var(--encre);
+    font-family: "Neue Haas Grotesk Text Pro", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; }
+
+  header {
+    padding: 28px 20px 18px;
+    border-bottom: 1px solid var(--gris-clair);
+  }
+  .marque {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+  }
+  .marque h1 {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0;
+  }
+  .marque h1 span { color: var(--leman); }
+  .compteur {
+    font-size: 13px;
+    color: var(--gris);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .filtres {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--gris-clair);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px 28px;
+    align-items: flex-end;
+  }
+  .champ {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .champ label {
+    font-size: 11px;
+    color: var(--gris);
+    letter-spacing: 0.01em;
+  }
+  .champ input {
+    border: none;
+    border-bottom: 1px solid var(--encre);
+    background: transparent;
+    font-size: 15px;
+    font-family: inherit;
+    color: var(--encre);
+    padding: 3px 0;
+    width: 110px;
+    font-variant-numeric: tabular-nums;
+  }
+  .champ input:focus { outline: none; border-bottom: 2px solid var(--leman); }
+  .champ.large input { width: 180px; }
+  .reinit {
+    border: none;
+    background: none;
+    color: var(--gris);
+    font-size: 13px;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 6px 0;
+  }
+  .reinit:hover { color: var(--encre); }
+
+  main { padding: 4px 20px 60px; }
+
+  .ligne {
+    display: grid;
+    grid-template-columns: 92px 100px 110px 1fr auto;
+    gap: 14px;
+    align-items: baseline;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--gris-clair);
+  }
+  .ligne:hover { background: var(--leman-clair); margin: 0 -12px; padding: 14px 12px; }
+
+  .loyer {
+    font-weight: 700;
+    font-size: 17px;
+    font-variant-numeric: tabular-nums;
+    color: var(--leman);
+    white-space: nowrap;
+  }
+  .carac {
+    font-size: 13px;
+    color: var(--gris);
+    white-space: nowrap;
+  }
+  .commune { font-size: 14px; }
+  .contenu a {
+    text-decoration: none;
+    font-size: 14px;
+  }
+  .contenu a:hover { text-decoration: underline; }
+  .source {
+    display: block;
+    font-size: 11px;
+    color: var(--gris);
+    margin-top: 2px;
+  }
+  .actions {
+    display: flex;
+    gap: 10px;
+    white-space: nowrap;
+  }
+  .actions button {
+    border: 1px solid var(--gris-clair);
+    background: var(--papier);
+    width: 30px;
+    height: 30px;
+    font-size: 15px;
+    cursor: pointer;
+    color: var(--gris);
+  }
+  .actions button:hover { border-color: var(--encre); color: var(--encre); }
+  .actions button.actif { color: var(--leman); border-color: var(--leman); }
+  .actions button.retirer:hover { color: var(--alerte); border-color: var(--alerte); }
+
+  .vide {
+    padding: 60px 0;
+    text-align: center;
+    color: var(--gris);
+    font-size: 14px;
+  }
+
+  @media (max-width: 640px) {
+    .ligne {
+      grid-template-columns: 1fr auto;
+      grid-template-areas: "loyer actions" "carac carac" "contenu contenu";
+      row-gap: 4px;
+    }
+    .loyer { grid-area: loyer; }
+    .actions { grid-area: actions; }
+    .carac { grid-area: carac; }
+    .commune { display: none; }
+    .contenu { grid-area: contenu; }
+  }
+</style>
 </head>
 <body>
-  <h1>jm-loc</h1>
-  <p>Interface à construire une fois les données fiables (section 9, étape 6).</p>
-  <p>Pour l'instant : <a href="/api/health">/api/health</a>, <a href="/api/stats">/api/stats</a></p>
+
+<header>
+  <div class="marque">
+    <h1>jm<span>·</span>loc</h1>
+    <div class="compteur" id="compteur">chargement…</div>
+  </div>
+</header>
+
+<div class="filtres">
+  <div class="champ">
+    <label for="f-loyer">Loyer max, CHF</label>
+    <input id="f-loyer" type="number" inputmode="numeric" />
+  </div>
+  <div class="champ">
+    <label for="f-pieces">Pièces min</label>
+    <input id="f-pieces" type="number" inputmode="numeric" step="0.5" />
+  </div>
+  <div class="champ large">
+    <label for="f-commune">Commune</label>
+    <input id="f-commune" type="text" placeholder="toutes" />
+  </div>
+  <button class="reinit" id="reinit">Réinitialiser</button>
+</div>
+
+<main>
+  <div id="liste"></div>
+  <div class="vide" id="vide" style="display:none">Aucune annonce ne correspond à ces critères pour l'instant.</div>
+</main>
+
+<script>
+const etat = { biens: [], favoris: new Set(), discarded: new Set(), prefs: {} };
+
+async function api(chemin, options) {
+  const res = await fetch(chemin, options);
+  return res.json();
+}
+
+function formatCHF(n) {
+  if (n == null) return "prix sur demande";
+  return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, "'") + ".–";
+}
+
+function rendre() {
+  const loyerMax = parseFloat(document.getElementById("f-loyer").value) || Infinity;
+  const piecesMin = parseFloat(document.getElementById("f-pieces").value) || 0;
+  const communeFiltre = document.getElementById("f-commune").value.trim().toLowerCase();
+
+  const filtres = etat.biens.filter((b) => {
+    if (etat.discarded.has(b.bien_id)) return false;
+    if (b.loyer_brut != null && b.loyer_brut > loyerMax) return false;
+    if (b.rooms != null && b.rooms < piecesMin) return false;
+    if (communeFiltre && !(b.locality || "").toLowerCase().includes(communeFiltre)) return false;
+    return true;
+  });
+
+  document.getElementById("compteur").textContent =
+    filtres.length + " annonce" + (filtres.length > 1 ? "s" : "") + " sur " + etat.biens.length;
+
+  const liste = document.getElementById("liste");
+  const vide = document.getElementById("vide");
+  liste.innerHTML = "";
+
+  if (filtres.length === 0) {
+    vide.style.display = "block";
+    return;
+  }
+  vide.style.display = "none";
+
+  for (const b of filtres) {
+    const ligne = document.createElement("div");
+    ligne.className = "ligne";
+
+    const estFavori = etat.favoris.has(b.bien_id);
+
+    ligne.innerHTML = `
+      <div class="loyer">${formatCHF(b.loyer_brut)}</div>
+      <div class="carac">${b.rooms != null ? b.rooms + " p." : "—"} ${b.surface != null ? "· " + b.surface + " m²" : ""}</div>
+      <div class="commune">${b.locality || "—"}</div>
+      <div class="contenu">
+        <a href="${b.url || "#"}" target="_blank" rel="noopener">${b.title || "Annonce sans titre"}</a>
+        <span class="source">${b.locality ? b.locality + " · " : ""}${b.source || ""}</span>
+      </div>
+      <div class="actions">
+        <button class="favori ${estFavori ? "actif" : ""}" title="Favori" data-id="${b.bien_id}">${estFavori ? "★" : "☆"}</button>
+        <button class="retirer" title="Ne plus voir" data-id="${b.bien_id}">✕</button>
+      </div>
+    `;
+    liste.appendChild(ligne);
+  }
+
+  liste.querySelectorAll(".favori").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.id;
+      const estDeja = etat.favoris.has(id);
+      if (estDeja) { etat.favoris.delete(id); } else { etat.favoris.add(id); }
+      await api("/api/favoris", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ bien_id: id, retirer: estDeja }),
+      });
+      rendre();
+    });
+  });
+
+  liste.querySelectorAll(".retirer").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.id;
+      etat.discarded.add(id);
+      await api("/api/discarded", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ bien_id: id }),
+      });
+      rendre();
+    });
+  });
+}
+
+async function sauverPreferences() {
+  etat.prefs.loyer_max = parseFloat(document.getElementById("f-loyer").value) || null;
+  etat.prefs.pieces_min = parseFloat(document.getElementById("f-pieces").value) || null;
+  const corps = Object.assign({}, etat.prefs, {
+    communes_exclues: JSON.parse(etat.prefs.communes_exclues_json || "[]"),
+  });
+  await api("/api/preferences", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(corps),
+  });
+}
+
+async function init() {
+  const [biens, favoris, discarded, prefs] = await Promise.all([
+    api("/api/biens"),
+    api("/api/favoris"),
+    api("/api/discarded"),
+    api("/api/preferences"),
+  ]);
+  etat.biens = biens;
+  etat.favoris = new Set(favoris);
+  etat.discarded = new Set(discarded);
+  etat.prefs = prefs;
+
+  document.getElementById("f-loyer").value = prefs.loyer_max || "";
+  document.getElementById("f-pieces").value = prefs.pieces_min || "";
+
+  document.getElementById("f-loyer").addEventListener("input", () => { rendre(); });
+  document.getElementById("f-loyer").addEventListener("change", sauverPreferences);
+  document.getElementById("f-pieces").addEventListener("input", () => { rendre(); });
+  document.getElementById("f-pieces").addEventListener("change", sauverPreferences);
+  document.getElementById("f-commune").addEventListener("input", rendre);
+  document.getElementById("reinit").addEventListener("click", () => {
+    document.getElementById("f-loyer").value = "";
+    document.getElementById("f-pieces").value = "";
+    document.getElementById("f-commune").value = "";
+    rendre();
+  });
+
+  rendre();
+}
+
+init();
+</script>
+
 </body>
 </html>

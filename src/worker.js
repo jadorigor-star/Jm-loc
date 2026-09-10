@@ -307,6 +307,55 @@ export default {
         return json({ ok: true });
       }
 
+      // --- Biens actifs, pour l'interface ---
+      if (url.pathname === "/api/biens" && request.method === "GET") {
+        const res = await db
+          .prepare(
+            `SELECT b.id as bien_id, b.locality, b.rooms, b.surface, b.loyer_m2, b.last_updated,
+                    l.title, l.url, l.loyer_brut, l.image_url, l.address, s.name as source
+             FROM biens b
+             LEFT JOIN listings l ON l.id = b.best_listing_id
+             LEFT JOIN sources s ON s.id = l.source_id
+             WHERE b.status='actif'
+             ORDER BY l.first_seen DESC
+             LIMIT 500`
+          )
+          .all();
+        return json(res.results);
+      }
+
+      if (url.pathname === "/api/favoris" && request.method === "GET") {
+        const res = await db.prepare("SELECT bien_id FROM favoris WHERE espace_id=?").bind(espace).all();
+        return json(res.results.map((r) => r.bien_id));
+      }
+
+      if (url.pathname === "/api/favoris" && request.method === "POST") {
+        const body = await request.json();
+        if (body.retirer) {
+          await db.prepare("DELETE FROM favoris WHERE espace_id=? AND bien_id=?").bind(espace, body.bien_id).run();
+        } else {
+          await db
+            .prepare("INSERT INTO favoris (espace_id, bien_id) VALUES (?,?) ON CONFLICT(espace_id, bien_id) DO NOTHING")
+            .bind(espace, body.bien_id)
+            .run();
+        }
+        return json({ ok: true });
+      }
+
+      if (url.pathname === "/api/discarded" && request.method === "GET") {
+        const res = await db.prepare("SELECT bien_id FROM discarded WHERE espace_id=?").bind(espace).all();
+        return json(res.results.map((r) => r.bien_id));
+      }
+
+      if (url.pathname === "/api/discarded" && request.method === "POST") {
+        const body = await request.json();
+        await db
+          .prepare("INSERT INTO discarded (espace_id, bien_id) VALUES (?,?) ON CONFLICT(espace_id, bien_id) DO NOTHING")
+          .bind(espace, body.bien_id)
+          .run();
+        return json({ ok: true });
+      }
+
       if (url.pathname === "/api/stats") {
         const st = await db
           .prepare(
