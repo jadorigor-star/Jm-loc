@@ -10,6 +10,24 @@ Verdicts possibles : `productive`, `accessible` (répond mais rien extrait), `js
 |---|---|---|
 | **Immostreet** (canton Genève, location) | ✅ **Productive** | 200 annonces/collecte (10 pages), 39 communes, extraction via `data-bookmark-data`. Mis en prod le 10.09.2026. |
 | **Comptoir Immobilier SA** | ✅ **Productive** | 25 annonces, plateforme Apimo (extracteur générique réutilisable pour d'autres régies sur la même plateforme). Mis en prod le 10.09.2026. |
+| **Les Régisseurs Associés SA** | ✅ **Productive** | 1-2 annonces (petit portefeuille résidentiel), structure WordPress dédiée. Mis en prod le 10.09.2026. |
+
+**Total en production au 10.09.2026 : 226 annonces réelles, 41 communes.**
+
+## Récapitulatif complet du sondage des 36 régies + 4 portails
+
+| Statut | Sources | Détail |
+|---|---|---|
+| ✅ Productif, en prod | Immostreet, Comptoir Immobilier, Les Régisseurs Associés | Extraction automatisée fonctionnelle |
+| 🕓 Accessible, JS nécessaire (à ressonder en navigateur) | SPG, Naef, Rosset (immo.rosset.ch), Melcarne, Burger Rodolphe, Moser Vernet | Annonces chargées après coup en JavaScript, structure non encore vérifiée |
+| 📄 Accessible mais page trouvée non pertinente | Bersier, Bordier & Schmidhauser, Daudin, Immocep, Verbel, Régie du Mail | Le `/louer/` deviné répond mais sans y trouver de vraies annonces dans la fenêtre testée — à revérifier avec une page ou un chemin différent |
+| ⚠️ Échec technique (0 octet, à investiguer) | BDD, Baezner, Gérard Paley, Cogerim, Imro, Gerofinance, Jouan-De Rham, Lemania, Moser Vernet Valorisations, Pilet & Renaud, Régie du Centre, Tournier | Connexion refusée ou timeout — cause non identifiée, nécessite un test manuel ou un contournement (proxy, en-têtes différents) |
+| 🚫 Bloqué anti-robot confirmé | PRIVERA AG, ImmoScout24 (recherche canton), Comparis | Cloudflare / anti-scraping |
+| ➖ Sans site web recensé | Besuchet Charles SA, Cofimob SA | — |
+| ⚪ Pas encore testées | Grange Immobilier, Privalia, Régie Foncière, Stoffel Immobilier | Réponse trop courte (probablement redirection ou 404) au premier essai, à reprendre avec la bonne URL |
+| ⚪ Sondée, 0 annonce actuelle | Livit SA | Vérifié le 10.09.2026 |
+| ⏳ À sonder | Wincasa | URL confirmée (wincasa.ch), pas encore sondée |
+| ❌ Non exploitable | Anibis (JS + détection navigateur automatisé) | Bloqué même en navigateur complet |
 
 
 | Source | Portail | Date sondée | Verdict | Notes |
