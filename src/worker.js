@@ -101,6 +101,35 @@ function extraireApimo(html) {
   return resultats;
 }
 
+// Extraction pour Les Régisseurs Associés : cartes WordPress avec classes
+// city/type/surface/rooms/price. Vérifié le 10.09.2026.
+function extraireRegisseurs(html) {
+  const resultats = [];
+  const reBloc = /<a href="([^"]+)" class="item" title="([^"]*)">([\s\S]*?)<\/a>/g;
+  let m;
+  while ((m = reBloc.exec(html)) !== null) {
+    if (!/location-appartement|location-maison/.test(m[1])) continue;
+    const bloc = m[3];
+    const cityMatch = bloc.match(/<span class="city">([^<]+)<\/span>/);
+    const surfaceMatch = bloc.match(/<span class="surface">(\d+)m<sup>2<\/sup><\/span>/);
+    const roomsMatch = bloc.match(/<span class="rooms">\s*([\d.,]+)\s*pi[eè]ces/);
+    const priceMatch = bloc.match(/<span class="price">\s*([\d',.]+)\s*CHF/);
+
+    resultats.push({
+      external_id: (m[1].match(/(\d+)\/?$/) || [, String(m.index)])[1],
+      url: m[1],
+      title: m[2],
+      locality: cityMatch ? cityMatch[1].trim() : null,
+      address: cityMatch ? cityMatch[1].trim() : null,
+      surface: surfaceMatch ? parseFloat(surfaceMatch[1]) : null,
+      rooms: roomsMatch ? parseFloat(roomsMatch[1].replace(",", ".")) : null,
+      loyer_brut: priceMatch ? parseFloat(priceMatch[1].replace(/'/g, "")) : null,
+      image: null,
+    });
+  }
+  return resultats;
+}
+
 function bienKey(locality, rooms, surface, sourceId, externalId) {
   if (locality && rooms != null && surface != null) {
     return `${locality.toLowerCase()}|appartement|${rooms}|${surface}`;
@@ -193,6 +222,8 @@ export default {
           items = extraireImmostreet(html);
         } else if (config.adapter === "apimo_card") {
           items = extraireApimo(html);
+        } else if (config.adapter === "regisseurs_wp_card") {
+          items = extraireRegisseurs(html);
         }
 
         for (const item of items) {
