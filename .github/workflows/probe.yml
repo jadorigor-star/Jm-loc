@@ -41,8 +41,8 @@ jobs:
           (async () => {
             const browser = await chromium.launch();
             const page = await browser.newPage();
-            const resp = await page.goto(process.env.PROBE_URL, { waitUntil: "load", timeout: 45000 });
-            await page.waitForTimeout(4000); // laisse le temps au SPA d'hydrater l'état Pinia
+            const resp = await page.goto(process.env.PROBE_URL, { waitUntil: "domcontentloaded", timeout: 30000 });
+            await page.waitForTimeout(6000); // laisse le temps au SPA d'hydrater l'état / appeler ses API
             const html = await page.content();
             require("fs").writeFileSync("diagnostics/probe-result.html", html);
             require("fs").writeFileSync("diagnostics/probe-result.json", JSON.stringify({
