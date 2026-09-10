@@ -67,6 +67,40 @@ function extraireImmostreet(html) {
 // (URL de repli) — cf. bug vécu sur le projet vente. On préfère
 // localité+pièces+surface ; le repli utilise source+identifiant interne,
 // jamais l'URL seule.
+// Extraction générique pour les agences utilisant la plateforme Apimo
+// (répandue chez les régies romandes) : chaque annonce est un lien <a>
+// suivi d'un prix "heading-4", de badges type/pièces/surface, et d'une
+// localité en "opacity-80". Vérifié sur Comptoir Immobilier le 10.09.2026 ;
+// à réutiliser tel quel pour toute autre régie détectée sur Apimo.
+function extraireApimo(html) {
+  const resultats = [];
+  const rePrix = /<div class="heading-4">CHF ([\d'.,]+)\.-\s*\/\s*mois<\/div>/g;
+  let m;
+  while ((m = rePrix.exec(html)) !== null) {
+    const avant = html.slice(Math.max(0, m.index - 700), m.index);
+    const apres = html.slice(m.index, m.index + 900);
+    const hrefs = [...avant.matchAll(/<a href="([^"]+)">/g)];
+    const url = hrefs.length ? hrefs[hrefs.length - 1][1] : null;
+    const titreMatch = apres.match(/<h2[^>]*>\s*<div>([^<]+)<\/div>/);
+    const piecesMatch = apres.match(/([\d.,]+)\s*pi[eè]ces</);
+    const surfaceMatch = apres.match(/(\d+)\s*m<sup>2<\/sup>/);
+    const localiteMatch = apres.match(/<div class="mt-3 opacity-80">([^<]+)<\/div>/);
+
+    resultats.push({
+      external_id: url ? url.replace(/\/$/, "").split("/").pop() : String(m.index),
+      url,
+      title: titreMatch ? titreMatch[1].trim() : "",
+      loyer_brut: parseFloat(m[1].replace(/'/g, "").replace(",", ".")),
+      rooms: piecesMatch ? parseFloat(piecesMatch[1].replace(",", ".")) : null,
+      surface: surfaceMatch ? parseFloat(surfaceMatch[1]) : null,
+      locality: localiteMatch ? localiteMatch[1].split(",")[0].trim() : null,
+      address: localiteMatch ? localiteMatch[1].trim() : null,
+      image: null,
+    });
+  }
+  return resultats;
+}
+
 function bienKey(locality, rooms, surface, sourceId, externalId) {
   if (locality && rooms != null && surface != null) {
     return `${locality.toLowerCase()}|appartement|${rooms}|${surface}`;
@@ -157,6 +191,8 @@ export default {
         let items = [];
         if (config.adapter === "immostreet_bookmark") {
           items = extraireImmostreet(html);
+        } else if (config.adapter === "apimo_card") {
+          items = extraireApimo(html);
         }
 
         for (const item of items) {
