@@ -223,10 +223,14 @@ function extraireRegieFonciere(html) {
   return resultats;
 }
 
+// Un bien = une annonce, par défaut. La clé fine (localité+pièces+surface)
+// a été essayée pour fusionner un même bien publié sur plusieurs sources,
+// mais elle fusionnait à tort des annonces différentes qui partageaient
+// juste des chiffres arrondis (ex. quatre appartements "1 pièce, 130 m²"
+// à des adresses différentes, réduits à une seule fiche visible — perte
+// de données, pas un doublon résolu). Tant qu'un rapprochement plus fin
+// (adresse, prix) n'est pas construit, on préfère ne jamais rien cacher.
 function bienKey(locality, rooms, surface, sourceId, externalId) {
-  if (locality && rooms != null && surface != null) {
-    return `${locality.toLowerCase()}|appartement|${rooms}|${surface}`;
-  }
   return `repli:${sourceId}:${externalId}`;
 }
 
