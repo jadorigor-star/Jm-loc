@@ -33,31 +33,51 @@ function decodeEntities(s) {
 function extraireImmostreet(html) {
   const resultats = [];
   const re = /data-bookmark-id="(\d+)" data-bookmark-data="([^"]+)"/g;
+  const correspondances = [];
   let m;
-  while ((m = re.exec(html)) !== null) {
+  while ((m = re.exec(html)) !== null) correspondances.push(m);
+
+  for (let i = 0; i < correspondances.length; i++) {
+    const courant = correspondances[i];
     let data;
     try {
-      data = JSON.parse(decodeEntities(m[2]));
+      data = JSON.parse(decodeEntities(courant[2]));
     } catch (e) {
       continue;
     }
-    const fenetre = html.slice(m.index, m.index + 2500);
+    // Fenêtre strictement bornée par le début de l'annonce suivante — jamais
+    // au-delà, pour ne pas piocher les pièces/surface d'une autre annonce.
+    const fin = i + 1 < correspondances.length ? correspondances[i + 1].index : html.length;
+    const fenetre = html.slice(courant.index, fin);
+
     const locMatch = fenetre.match(/<div class="location">([^<]+)<\/div>/);
     const roomsMatch = fenetre.match(/<li class="item -muted">([\d.,]+)\s*Pi[eè]ces<\/li>/);
     const surfaceMatch = fenetre.match(/<li class="item -muted">(\d+)\s*m<sup>2<\/sup>/);
     const titleMatch = fenetre.match(/<h2 class="title">([^<]+)<\/h2>/);
 
+    let rooms = roomsMatch ? parseFloat(roomsMatch[1].replace(",", ".")) : null;
+    let surface = surfaceMatch ? parseFloat(surfaceMatch[1]) : null;
+    const loyer = typeof data.price === "number" ? data.price : null;
+
+    // Garde-fou : un prix au m² invraisemblable (>150 CHF/m²/mois, ce qui
+    // couvre déjà le très haut de gamme genevois) signale une donnée
+    // mal appariée plutôt qu'une vraie annonce de luxe — on garde le prix,
+    // mais on efface la surface/pièces non fiables plutôt que de publier
+    // un chiffre trompeur.
+    if (surface && loyer && loyer / surface > 150) { surface = null; }
+    if (rooms != null && loyer != null && loyer > 8000 && rooms <= 2) { rooms = null; }
+
     resultats.push({
-      external_id: m[1],
+      external_id: courant[1],
       url: (data.link || "").replace(/^href:/, ""),
       image: (data.thumbnail || "").replace(/^src:/, ""),
       title: titleMatch ? titleMatch[1].trim() : data.headline || "",
       address: locMatch ? locMatch[1].trim() : data.headline || "",
       locality: data.city || null,
       zip: data.zip || null,
-      loyer_brut: typeof data.price === "number" ? data.price : null,
-      rooms: roomsMatch ? parseFloat(roomsMatch[1].replace(",", ".")) : null,
-      surface: surfaceMatch ? parseFloat(surfaceMatch[1]) : null,
+      loyer_brut: loyer,
+      rooms: rooms,
+      surface: surface,
     });
   }
   return resultats;
@@ -254,13 +274,17 @@ export default {
         const sourceName = body.source_name || "inconnue";
         const html = String(body.html || "");
 
+        // Clé de capture : nom de source + URL, pour que les pages
+        // successives d'une même source (pagination) ne s'écrasent pas
+        // entre elles — sans quoi le diagnostic après coup est impossible.
+        const cleCapture = sourceName + " :: " + (body.url || "");
         try {
           await db
             .prepare(
               "INSERT INTO debug_captures (source_name, url, html, captured_at) VALUES (?,?,?,?) " +
                 "ON CONFLICT(source_name) DO UPDATE SET url=excluded.url, html=excluded.html, captured_at=excluded.captured_at"
             )
-            .bind(sourceName, body.url || "", html.slice(0, 900000), new Date().toISOString())
+            .bind(cleCapture, body.url || "", html.slice(0, 900000), new Date().toISOString())
             .run();
         } catch (e) {
           return json({ ok: false, stage: "debug_capture", error: String(e && e.message ? e.message : e) }, 500);
