@@ -1,9 +1,9 @@
 # Collecte
 
-Exécuté le 2026-09-11T04:35:30.103Z
+Exécuté le 2026-09-11T04:51:51.049Z
 
 - COMPTOIR IMMOBILIER SA: 25 annonce(s), 0 retirée(s)
-- Immostreet - Canton Genève (location): 200 annonce(s), 2 retirée(s)
+- Immostreet - Canton Genève (location): 200 annonce(s), 0 retirée(s)
 - LES RÉGISSEURS ASSOCIÉS SA: 1 annonce(s), 0 retirée(s)
 - ROSSET & Cie SA: 3 annonce(s), 0 retirée(s)
 - RÉGIE FONCIÈRE SA: 2 annonce(s), 0 retirée(s)
