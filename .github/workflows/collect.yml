@@ -1,10 +1,12 @@
 name: collect
 
 on:
-  schedule:
-    # Toutes les 20 minutes — pas de Cron Triggers Cloudflare (défaut connu :
-    # arrêt silencieux). Rythme location, pas vente (section 6 de l'amorçage).
-    - cron: "*/20 * * * *"
+  # Planification suspendue temporairement : le quota gratuit de lecture D1
+  # est épuisé pour la journée (cf. section 7 de l'amorçage), donc chaque
+  # tentative échoue et déclenche un e-mail d'échec toutes les 20 minutes.
+  # À réactiver après minuit UTC, une fois le quota reconstitué.
+  # schedule:
+  #   - cron: "*/20 * * * *"
   workflow_dispatch: {}
 
 jobs:
