@@ -1,0 +1,22 @@
+name: admin
+
+on:
+  workflow_dispatch:
+    inputs:
+      route:
+        description: "Route à appeler (ex: /api/reprocess)"
+        required: true
+      body:
+        description: "Corps JSON à envoyer"
+        required: false
+        default: "{}"
+
+jobs:
+  appel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Appel
+        run: |
+          curl -s -X POST "https://jm-loc.jadorigor.workers.dev${{ github.event.inputs.route }}" \
+            -H "content-type: application/json" \
+            -d '${{ github.event.inputs.body }}'
