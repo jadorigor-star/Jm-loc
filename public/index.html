@@ -281,8 +281,8 @@
   <div class="champ large" style="max-width:480px">
     <label>Espace personnel</label>
     <p style="font-size:13px;color:var(--gris);margin:2px 0 8px">
-      Vos favoris, biens écartés et réglages sont propres à cet appareil.
-      Pour les retrouver ailleurs — ou les partager avec quelqu'un — communiquez cet identifiant, ou saisissez le sien ci-dessous pour rejoindre son espace.
+      Par défaut, tous les appareils partagent le même espace (« principal »).
+      Pour que quelqu'un ait ses propres favoris et biens écartés, saisissez ici un nom au choix (p. ex. « conjoint ») sur son appareil.
     </p>
     <div style="font-family: ui-monospace, monospace; font-size:14px; margin-bottom:8px;" id="espace-actuel"></div>
     <input id="champ-espace" type="text" placeholder="rejoindre un autre espace" style="border:1px solid var(--gris-clair);padding:6px 8px;width:220px;font-family:inherit;font-size:14px;" />
@@ -312,7 +312,7 @@ function espaceLocal() {
   try {
     var e = localStorage.getItem("jm_espace");
     if (!e) {
-      e = "esp-" + Math.random().toString(36).slice(2, 8) + Math.random().toString(36).slice(2, 6);
+      e = "principal";
       localStorage.setItem("jm_espace", e);
     }
     return e;
@@ -495,6 +495,7 @@ async function sauverPreferences() {
 }
 
 async function init() {
+  var espaceInitial = espaceLocal();
   var resultats = await Promise.all([
     api("/api/biens"), api("/api/favoris"), api("/api/discarded"), api("/api/preferences"),
   ]);
@@ -502,6 +503,17 @@ async function init() {
   etat.favoris = new Set(resultats[1]);
   etat.discarded = new Set(resultats[2]);
   etat.prefs = resultats[3];
+
+  // Réparation : un appareil basculé par erreur vers un espace aléatoire
+  // vide (avant ce correctif) est ramené silencieusement vers "principal".
+  var ressembleAutoGenere = /^esp-[a-z0-9]+$/.test(espaceInitial);
+  if (ressembleAutoGenere && etat.favoris.size === 0 && etat.discarded.size === 0 && !sessionStorage.getItem("jm_reparation_faite")) {
+    sessionStorage.setItem("jm_reparation_faite", "1");
+    definirEspace("principal");
+    location.reload();
+    return;
+  }
+
   try {
     etat.communesExclues = new Set(JSON.parse(etat.prefs.communes_exclues_json || "[]"));
   } catch (e) { etat.communesExclues = new Set(); }
