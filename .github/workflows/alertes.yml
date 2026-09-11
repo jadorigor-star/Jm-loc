@@ -1,8 +1,12 @@
 name: alertes
 
 on:
-  schedule:
-    - cron: "*/20 * * * *"
+  # Planification désactivée tant que l'envoi d'e-mail n'est pas configuré
+  # (des identifiants SMTP manquent) — sans quoi les biens seraient marqués
+  # "déjà notifiés" en silence, et ne seraient plus jamais signalés une
+  # fois l'envoi réellement branché.
+  # schedule:
+  #   - cron: "*/20 * * * *"
   workflow_dispatch: {}
 
 jobs:
