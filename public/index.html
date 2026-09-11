@@ -287,6 +287,19 @@
     <div style="font-family: ui-monospace, monospace; font-size:14px; margin-bottom:8px;" id="espace-actuel"></div>
     <input id="champ-espace" type="text" placeholder="rejoindre un autre espace" style="border:1px solid var(--gris-clair);padding:6px 8px;width:220px;font-family:inherit;font-size:14px;" />
     <button id="bouton-rejoindre" style="border:1px solid var(--encre);background:var(--papier);padding:6px 12px;font-size:14px;cursor:pointer;margin-left:6px;">Rejoindre</button>
+
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--gris-clair)">
+      <label style="display:block;margin-bottom:6px">Alertes par e-mail</label>
+      <p style="font-size:13px;color:var(--gris);margin:2px 0 8px">
+        Reçevez un e-mail dès qu'un nouveau bien correspond à vos critères (loyer max, pièces min, communes exclues) — propre à cet espace, comme les favoris.
+      </p>
+      <input id="champ-email" type="email" placeholder="votre@email.ch" style="border:1px solid var(--gris-clair);padding:6px 8px;width:220px;font-family:inherit;font-size:14px;" />
+      <label style="display:inline-flex;align-items:center;gap:6px;margin-left:10px;font-size:14px;">
+        <input id="champ-alertes-actives" type="checkbox" /> activer
+      </label>
+      <button id="bouton-sauver-email" style="border:1px solid var(--encre);background:var(--papier);padding:6px 12px;font-size:14px;cursor:pointer;margin-left:6px;">Enregistrer</button>
+      <div id="email-statut" style="font-size:12px;color:var(--leman);margin-top:6px;"></div>
+    </div>
   </div>
 </div>
 </div>
@@ -551,6 +564,8 @@ async function init() {
   });
 
   document.getElementById("espace-actuel").textContent = espaceLocal();
+  document.getElementById("champ-email").value = etat.prefs.email || "";
+  document.getElementById("champ-alertes-actives").checked = !!etat.prefs.alertes_actives;
   document.getElementById("bouton-espace").addEventListener("click", function () {
     var p = document.getElementById("panneau-espace");
     p.style.display = p.style.display === "none" ? "flex" : "none";
@@ -562,6 +577,13 @@ async function init() {
     } else {
       champ.style.borderColor = "var(--alerte)";
     }
+  });
+  document.getElementById("bouton-sauver-email").addEventListener("click", async function () {
+    etat.prefs.email = document.getElementById("champ-email").value.trim();
+    etat.prefs.alertes_actives = document.getElementById("champ-alertes-actives").checked;
+    await sauverPreferences();
+    var statut = document.getElementById("email-statut");
+    statut.textContent = etat.prefs.alertes_actives && etat.prefs.email ? "Alertes activées pour " + etat.prefs.email : "Enregistré (alertes désactivées).";
   });
 
   document.querySelectorAll(".onglet[data-onglet]").forEach(function (btn) {

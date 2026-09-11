@@ -419,7 +419,7 @@ export default {
         const body = await request.json();
         await db
           .prepare(
-            "UPDATE preferences SET loyer_max=?, charges_incluses_dans_max=?, pieces_min=?, date_entree=?, communes_exclues_json=?, meuble_accepte=?, animaux_requis=? WHERE espace_id=?"
+            "UPDATE preferences SET loyer_max=?, charges_incluses_dans_max=?, pieces_min=?, date_entree=?, communes_exclues_json=?, meuble_accepte=?, animaux_requis=?, email=?, alertes_actives=? WHERE espace_id=?"
           )
           .bind(
             body.loyer_max,
@@ -429,6 +429,8 @@ export default {
             JSON.stringify(body.communes_exclues || []),
             body.meuble_accepte ? 1 : 0,
             body.animaux_requis || "petits_ok",
+            body.email || null,
+            body.alertes_actives ? 1 : 0,
             espace
           )
           .run();
@@ -513,6 +515,56 @@ export default {
             .run();
         }
         return json({ ok: true });
+      }
+
+      // --- Alertes : calcule les nouveaux biens correspondant aux critères
+      // de chaque espace ayant activé les alertes, et les marque comme
+      // envoyés. Section 6 de l'amorçage : "l'alerte est le produit, pas
+      // un confort". Le réel envoi d'e-mail est fait par l'appelant
+      // (GitHub Actions), cette route ne fait que calculer et journaliser.
+      if (url.pathname === "/api/alertes/verifier" && request.method === "POST") {
+        const prefsRes = await db
+          .prepare("SELECT * FROM preferences WHERE alertes_actives=1 AND email IS NOT NULL AND email != ''")
+          .all();
+        const sortie = [];
+
+        for (const pref of prefsRes.results) {
+          let exclues = [];
+          try {
+            exclues = JSON.parse(pref.communes_exclues_json || "[]");
+          } catch (e) {}
+
+          const biensRes = await db
+            .prepare(
+              `SELECT b.id as bien_id, b.locality, b.rooms, b.surface, l.title, l.url, l.loyer_brut, s.name as source
+               FROM biens b
+               LEFT JOIN listings l ON l.id = b.best_listing_id
+               LEFT JOIN sources s ON s.id = l.source_id
+               WHERE b.status='actif' AND l.status='active'
+                 AND (l.loyer_brut IS NULL OR l.loyer_brut <= ?)
+                 AND (b.rooms IS NULL OR b.rooms >= ?)
+                 AND NOT EXISTS (SELECT 1 FROM alerts_log a WHERE a.espace_id=? AND a.bien_id=b.id)`
+            )
+            .bind(pref.loyer_max || 999999999, pref.pieces_min || 0, pref.espace_id)
+            .all();
+
+          const nouveaux = biensRes.results.filter((b) => !exclues.includes(b.locality));
+
+          for (const b of nouveaux) {
+            await db
+              .prepare(
+                "INSERT INTO alerts_log (espace_id, bien_id, channel) VALUES (?,?,'email') ON CONFLICT(espace_id, bien_id) DO NOTHING"
+              )
+              .bind(pref.espace_id, b.bien_id)
+              .run();
+          }
+
+          if (nouveaux.length > 0) {
+            sortie.push({ espace_id: pref.espace_id, email: pref.email, nouveaux });
+          }
+        }
+
+        return json(sortie);
       }
 
       if (url.pathname === "/api/stats") {
