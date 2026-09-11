@@ -51,13 +51,26 @@ function extraireImmostreet(html) {
     const fenetre = html.slice(courant.index, fin);
 
     const locMatch = fenetre.match(/<div class="location">([^<]+)<\/div>/);
-    const roomsMatch = fenetre.match(/<li class="item -muted">([\d.,]+)\s*Pi[eè]ces<\/li>/);
-    const surfaceMatch = fenetre.match(/<li class="item -muted">(\d+)\s*m<sup>2<\/sup>/);
     const titleMatch = fenetre.match(/<h2 class="title">([^<]+)<\/h2>/);
 
-    let rooms = roomsMatch ? parseFloat(roomsMatch[1].replace(",", ".")) : null;
-    let surface = surfaceMatch ? parseFloat(surfaceMatch[1]) : null;
-    const loyer = typeof data.price === "number" ? data.price : null;
+    // Deux sources indépendantes pour pièces/surface : la liste courte
+    // (attributesshort) et le bloc explicite clé/valeur (results-attributes).
+    // On préfère le bloc explicite, plus fiable, et on ne garde la liste
+    // courte qu'en repli.
+    const roomsCourt = fenetre.match(/<li class="item -muted">([\d.,]+)\s*Pi[eè]ces<\/li>/);
+    const surfaceCourt = fenetre.match(/<li class="item -muted">(\d+)\s*m<sup>2<\/sup>/);
+    const roomsExplicite = fenetre.match(/<span class="key">Pi[eè]ces<\/span>\s*<span class="value">([\d.,]+)<\/span>/);
+    const surfaceExplicite = fenetre.match(/<span class="key">Surf\. habitable<\/span>\s*<span class="value">(\d+)\s*m/);
+
+    let rooms = roomsExplicite ? parseFloat(roomsExplicite[1].replace(",", ".")) : (roomsCourt ? parseFloat(roomsCourt[1].replace(",", ".")) : null);
+    let surface = surfaceExplicite ? parseFloat(surfaceExplicite[1]) : (surfaceCourt ? parseFloat(surfaceCourt[1]) : null);
+
+    // Prix : celui réellement affiché à l'écran (span "amount") prime sur
+    // le prix embarqué dans le JSON du bouton favori, qui peut diverger.
+    const prixVisible = fenetre.match(/<span class="amount">([\d'.,]+)<\/span>/);
+    let loyer = prixVisible
+      ? parseFloat(prixVisible[1].replace(/'/g, "").replace(",", "."))
+      : (typeof data.price === "number" ? data.price : null);
 
     // Garde-fou : un prix au m² invraisemblable (>150 CHF/m²/mois, ce qui
     // couvre déjà le très haut de gamme genevois) signale une donnée
