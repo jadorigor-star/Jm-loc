@@ -259,24 +259,26 @@ async function extraireEtStocker(db, source, html) {
 
 async function stockerAnnonce(db, sourceId, item) {
   const now = new Date().toISOString();
+  const key = bienKey(item.locality, item.rooms, item.surface, sourceId, item.external_id);
+  const loyerM2 = item.surface && item.loyer_brut ? item.loyer_brut / item.surface : null;
+
   await db
     .prepare(
-      `INSERT INTO listings (source_id, external_id, url, title, image_url, locality, loyer_brut, rooms, surface, address, status, first_seen, last_seen)
-       VALUES (?,?,?,?,?,?,?,?,?,?,'active',?,?)
+      `INSERT INTO listings (source_id, external_id, url, title, image_url, locality, loyer_brut, rooms, surface, address, status, bien_id, first_seen, last_seen)
+       VALUES (?,?,?,?,?,?,?,?,?,?,'active',?,?,?)
        ON CONFLICT(source_id, external_id) DO UPDATE SET
          url=excluded.url, title=excluded.title, image_url=excluded.image_url,
          locality=excluded.locality, loyer_brut=excluded.loyer_brut, rooms=excluded.rooms,
-         surface=excluded.surface, address=excluded.address, status='active', last_seen=excluded.last_seen, missing_since=NULL`
+         surface=excluded.surface, address=excluded.address, status='active', bien_id=excluded.bien_id,
+         last_seen=excluded.last_seen, missing_since=NULL`
     )
     .bind(
       sourceId, item.external_id, item.url, item.title, item.image,
       item.locality, item.loyer_brut, item.rooms, item.surface, item.address,
-      now, now
+      key, now, now
     )
     .run();
 
-  const key = bienKey(item.locality, item.rooms, item.surface, sourceId, item.external_id);
-  const loyerM2 = item.surface && item.loyer_brut ? item.loyer_brut / item.surface : null;
   const listingRow = await db
     .prepare("SELECT id FROM listings WHERE source_id=? AND external_id=?")
     .bind(sourceId, item.external_id)
