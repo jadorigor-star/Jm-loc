@@ -386,7 +386,7 @@ function rendre() {
 
   var base = etat.biens;
   if (onglet === "toutes") {
-    base = base.filter(function (b) { return !etat.discarded.has(b.bien_id); });
+    base = base.filter(function (b) { return !etat.discarded.has(b.bien_id) && !etat.favoris.has(b.bien_id); });
   } else if (onglet === "retenues") {
     base = base.filter(function (b) { return etat.favoris.has(b.bien_id); });
   } else if (onglet === "ecartees") {
