@@ -21,6 +21,7 @@ async function main() {
     const urls = config.urls || [];
     let totalExtrait = 0;
     let erreur = null;
+    const debutPassage = new Date().toISOString();
 
     for (const url of urls) {
       try {
@@ -41,13 +42,33 @@ async function main() {
         erreur = String(e && e.message ? e.message : e);
       }
     }
-    rapport.push({ source: src.name, annonces: totalExtrait, erreur });
+
+    // Une seule absence suffit à retirer une annonce en location (section 6
+    // de l'amorçage) — on ne finalise que si la collecte de cette source
+    // n'a pas planté, pour ne jamais retirer des annonces valides à cause
+    // d'une simple erreur réseau.
+    let retirees = 0;
+    if (!erreur) {
+      try {
+        const finRes = await fetch(`${WORKER_URL}/api/finaliser-collecte`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ source_name: src.name, depuis: debutPassage }),
+        });
+        const finJson = await finRes.json();
+        retirees = finJson.annonces_retirees || 0;
+      } catch (e) {
+        // pas bloquant : au pire on retire au passage suivant
+      }
+    }
+
+    rapport.push({ source: src.name, annonces: totalExtrait, retirees, erreur });
   }
 
   await browser.close();
 
   const lignes = rapport.map(
-    (r) => `- ${r.source}: ${r.annonces} annonce(s)${r.erreur ? " — ERREUR: " + r.erreur : ""}`
+    (r) => `- ${r.source}: ${r.annonces} annonce(s), ${r.retirees} retirée(s)${r.erreur ? " — ERREUR: " + r.erreur : ""}`
   );
   fs.mkdirSync("diagnostics", { recursive: true });
   fs.writeFileSync(

@@ -230,6 +230,33 @@ function bienKey(locality, rooms, surface, sourceId, externalId) {
   return `repli:${sourceId}:${externalId}`;
 }
 
+// Point unique d'aiguillage extraction → stockage, réutilisé par
+// /api/ingest-raw (collecte normale) et /api/reprocess (retraitement forcé,
+// section 8 de l'amorçage : "prévoir dès le début un moyen de retraiter
+// les données existantes").
+async function extraireEtStocker(db, source, html) {
+  let config = {};
+  try {
+    config = JSON.parse(source.config_json || "{}");
+  } catch (e) {}
+
+  let items = [];
+  if (config.adapter === "immostreet_bookmark") items = extraireImmostreet(html);
+  else if (config.adapter === "apimo_card") items = extraireApimo(html);
+  else if (config.adapter === "regisseurs_wp_card") items = extraireRegisseurs(html);
+  else if (config.adapter === "rosset_immomig") items = extraireRosset(html);
+  else if (config.adapter === "regiefonciere_card") items = extraireRegieFonciere(html);
+
+  for (const item of items) {
+    try {
+      await stockerAnnonce(db, source.id, item);
+    } catch (e) {
+      // on continue les autres annonces même si une échoue
+    }
+  }
+  return items.length;
+}
+
 async function stockerAnnonce(db, sourceId, item) {
   const now = new Date().toISOString();
   await db
@@ -309,31 +336,7 @@ export default {
           return json({ ok: true, note: "source inconnue, capture enregistrée seulement" });
         }
 
-        let config = {};
-        try {
-          config = JSON.parse(source.config_json || "{}");
-        } catch (e) {}
-
-        let items = [];
-        if (config.adapter === "immostreet_bookmark") {
-          items = extraireImmostreet(html);
-        } else if (config.adapter === "apimo_card") {
-          items = extraireApimo(html);
-        } else if (config.adapter === "regisseurs_wp_card") {
-          items = extraireRegisseurs(html);
-        } else if (config.adapter === "rosset_immomig") {
-          items = extraireRosset(html);
-        } else if (config.adapter === "regiefonciere_card") {
-          items = extraireRegieFonciere(html);
-        }
-
-        for (const item of items) {
-          try {
-            await stockerAnnonce(db, source.id, item);
-          } catch (e) {
-            // on continue les autres annonces même si une échoue
-          }
-        }
+        const nbAnnonces = await extraireEtStocker(db, source, html);
 
         await db
           .prepare(
@@ -341,13 +344,64 @@ export default {
           )
           .bind(
             new Date().toISOString(),
-            items.length,
-            items.length > 0 ? "productive" : "accessible_sans_extraction",
+            nbAnnonces,
+            nbAnnonces > 0 ? "productive" : "accessible_sans_extraction",
             source.id
           )
           .run();
 
-        return json({ ok: true, source: sourceName, annonces_extraites: items.length });
+        return json({ ok: true, source: sourceName, source_id: source.id, annonces_extraites: nbAnnonces });
+      }
+
+      // --- Retraitement forcé, sans re-télécharger : rejoue l'extraction sur
+      // les dernières captures déjà en base. Corrige le stock existant dès
+      // qu'un extracteur est amélioré, sans attendre le prochain passage de
+      // collecte (section 8 de l'amorçage). ---
+      if (url.pathname === "/api/reprocess" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const nomSource = body.source_name;
+        if (!nomSource) return json({ ok: false, error: "source_name requis" }, 400);
+
+        const srcRes = await db.prepare("SELECT * FROM sources WHERE name=?").bind(nomSource).all();
+        const source = srcRes.results[0];
+        if (!source) return json({ ok: false, error: "source inconnue" }, 404);
+
+        const capturesRes = await db
+          .prepare("SELECT html FROM debug_captures WHERE source_name LIKE ?")
+          .bind(nomSource + " :: %")
+          .all();
+
+        let total = 0;
+        for (const row of capturesRes.results) {
+          total += await extraireEtStocker(db, source, row.html);
+        }
+
+        return json({ ok: true, source: nomSource, pages_retraitees: capturesRes.results.length, annonces_extraites: total });
+      }
+
+      // --- Finalisation d'une collecte : marque "removed" tout ce qui
+      // n'a pas été revu pendant ce passage — une seule absence suffit en
+      // location (section 6 de l'amorçage, contrairement à la vente qui
+      // tolérait deux absences). Appelé par collect.js après avoir parcouru
+      // toutes les pages d'une source. ---
+      if (url.pathname === "/api/finaliser-collecte" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const nomSource = body.source_name;
+        const depuis = body.depuis;
+        if (!nomSource || !depuis) return json({ ok: false, error: "source_name et depuis requis" }, 400);
+
+        const srcRes = await db.prepare("SELECT id FROM sources WHERE name=?").bind(nomSource).all();
+        const source = srcRes.results[0];
+        if (!source) return json({ ok: false, error: "source inconnue" }, 404);
+
+        const res = await db
+          .prepare(
+            "UPDATE listings SET status='removed', missing_since=? WHERE source_id=? AND status='active' AND last_seen<?"
+          )
+          .bind(new Date().toISOString(), source.id, depuis)
+          .run();
+
+        return json({ ok: true, source: nomSource, annonces_retirees: res.meta.changes });
       }
 
       // --- Préférences (critères de recherche) ---
@@ -417,7 +471,7 @@ export default {
              FROM biens b
              LEFT JOIN listings l ON l.id = b.best_listing_id
              LEFT JOIN sources s ON s.id = l.source_id
-             WHERE b.status='actif'
+             WHERE b.status='actif' AND l.status='active'
              ORDER BY l.first_seen DESC
              LIMIT 500`
           )
