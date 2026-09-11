@@ -13,6 +13,10 @@ on:
         description: "Rendu JavaScript nécessaire (navigateur complet) ?"
         required: false
         default: "false"
+      long_wait:
+        description: "Attente longue + defilement (grilles chargees en scroll/lazy)"
+        required: false
+        default: "false"
 
 jobs:
   probe:
@@ -42,7 +46,15 @@ jobs:
             const browser = await chromium.launch();
             const page = await browser.newPage();
             const resp = await page.goto(process.env.PROBE_URL, { waitUntil: "domcontentloaded", timeout: 30000 });
-            await page.waitForTimeout(6000);
+            if (process.env.LONG_WAIT === "true") {
+              for (let i = 0; i < 5; i++) {
+                await page.evaluate(() => window.scrollBy(0, 900));
+                await page.waitForTimeout(1500);
+              }
+              await page.waitForTimeout(4000);
+            } else {
+              await page.waitForTimeout(6000);
+            }
             const html = await page.content();
             require("fs").writeFileSync("diagnostics/probe-result.html", html);
             require("fs").writeFileSync("diagnostics/probe-result.json", JSON.stringify({
@@ -53,6 +65,7 @@ jobs:
           })();'
         env:
           PROBE_URL: ${{ github.event.inputs.url }}
+          LONG_WAIT: ${{ github.event.inputs.long_wait }}
 
       - name: Sonder (requête simple)
         if: ${{ github.event.inputs.js_render != 'true' }}
