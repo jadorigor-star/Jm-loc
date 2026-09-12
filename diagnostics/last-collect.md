@@ -1,6 +1,6 @@
 # Collecte
 
-Exécuté le 2026-09-12T08:33:46.196Z
+Exécuté le 2026-09-12T08:51:58.579Z
 
 - COMPTOIR IMMOBILIER SA: 25 annonce(s), 0 retirée(s)
 - Immostreet - Canton Genève (location): 200 annonce(s), 0 retirée(s)
