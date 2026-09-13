@@ -243,6 +243,7 @@
     <button class="onglet" data-onglet="retenues">Retenues <span class="n" id="n-retenues"></span></button>
     <button class="onglet" data-onglet="ecartees">Écartées <span class="n" id="n-ecartees"></span></button>
     <button class="onglet" id="bouton-espace" style="margin-left:auto">Espace ⚙</button>
+    <button class="onglet" id="bouton-sources">Sources</button>
   </div>
 </header>
 
@@ -293,6 +294,23 @@
          Backend prêt (préférences email/alertes_actives, route
          /api/alertes/verifier, workflow alertes.yml) — à réactiver ici
          une fois l'envoi effectif branché. -->
+  </div>
+</div>
+
+<div class="filtres" id="panneau-sources" style="display:none">
+  <div class="champ large" style="max-width:100%;width:100%">
+    <label>Sources considérées</label>
+    <p style="font-size:13px;color:var(--gris);margin:2px 0 8px" id="sources-resume"></p>
+    <div class="champ" style="margin-bottom:10px">
+      <label for="f-tri-sources">Trier par</label>
+      <select id="f-tri-sources">
+        <option value="statut">Statut</option>
+        <option value="nom">Nom</option>
+        <option value="annonces">Nombre d'annonces</option>
+        <option value="verifie">Dernière vérification</option>
+      </select>
+    </div>
+    <div id="liste-sources" style="max-height:420px;overflow-y:auto"></div>
   </div>
 </div>
 </div>
@@ -561,6 +579,50 @@ async function init() {
     var p = document.getElementById("panneau-espace");
     p.style.display = p.style.display === "none" ? "flex" : "none";
   });
+
+  var sourcesChargees = null;
+  function rendreSources() {
+    if (!sourcesChargees) return;
+    var tri = document.getElementById("f-tri-sources").value;
+    var copie = sourcesChargees.slice();
+    if (tri === "statut") {
+      copie.sort(function (a, b) { return (a.state || "").localeCompare(b.state || "") || (a.name || "").localeCompare(b.name || ""); });
+    } else if (tri === "nom") {
+      copie.sort(function (a, b) { return (a.name || "").localeCompare(b.name || ""); });
+    } else if (tri === "annonces") {
+      copie.sort(function (a, b) { return (b.last_productive_count || 0) - (a.last_productive_count || 0); });
+    } else if (tri === "verifie") {
+      copie.sort(function (a, b) { return (b.last_checked || "").localeCompare(a.last_checked || ""); });
+    }
+
+    var actives = sourcesChargees.filter(function (s) { return s.enabled; }).length;
+    document.getElementById("sources-resume").textContent =
+      sourcesChargees.length + " source(s) considérée(s), dont " + actives + " active(s) en collecte.";
+
+    var liste = document.getElementById("liste-sources");
+    liste.innerHTML = copie.map(function (s) {
+      var couleur = s.state === "productive" ? "var(--leman)" : (s.enabled ? "var(--encre)" : "var(--gris)");
+      var verifie = s.last_checked ? new Date(s.last_checked).toLocaleString("fr-CH") : "jamais";
+      return '<div style="padding:8px 0;border-bottom:1px solid var(--gris-clair);font-size:13px">' +
+        '<div style="display:flex;justify-content:space-between;gap:8px">' +
+          '<strong>' + (s.name || "") + '</strong>' +
+          '<span style="color:' + couleur + '">' + (s.state || "—") + (s.enabled ? "" : " · désactivée") + '</span>' +
+        '</div>' +
+        '<div style="color:var(--gris)">' + (s.last_productive_count || 0) + ' annonce(s) · vérifiée ' + verifie + '</div>' +
+      '</div>';
+    }).join("");
+  }
+
+  document.getElementById("bouton-sources").addEventListener("click", async function () {
+    var p = document.getElementById("panneau-sources");
+    var ouvrir = p.style.display === "none";
+    p.style.display = ouvrir ? "flex" : "none";
+    if (ouvrir && !sourcesChargees) {
+      sourcesChargees = await api("/api/sources");
+      rendreSources();
+    }
+  });
+  document.getElementById("f-tri-sources").addEventListener("change", rendreSources);
   document.getElementById("bouton-rejoindre").addEventListener("click", function () {
     var champ = document.getElementById("champ-espace");
     if (definirEspace(champ.value)) {
