@@ -239,6 +239,43 @@ function extraireRegieFonciere(html) {
 // à des adresses différentes, réduits à une seule fiche visible — perte
 // de données, pas un doublon résolu). Tant qu'un rapprochement plus fin
 // (adresse, prix) n'est pas construit, on préfère ne jamais rien cacher.
+// Extraction pour SPG (plateforme ImmoMig, thème "property-teaser").
+// Contournement : leur page de recherche est en JavaScript lourd pour un
+// navigateur normal, mais sert une version pré-rendue aux robots des
+// moteurs de recherche (rendu dynamique). Une requête simple avec un
+// User-Agent Googlebot suffit — pas besoin de navigateur. Vérifié 13.09.2026.
+function extraireSPG(html) {
+  const resultats = [];
+  const re = /<a aria-label="([^"]*)"\s+href="([^"]+)" class="property-teaser__bottom">([\s\S]*?)<\/a>/g;
+  let m;
+  while ((m = re.exec(html)) !== null) {
+    const bloc = m[3];
+    const cityMatch = bloc.match(/<span class="city">([^<]+)<\/span>/);
+    const priceMatch = bloc.match(/<div class="price">\s*([\d,'.]+)/);
+    const attrs = [...bloc.matchAll(/<span class="attribute">([^<]+)<\/span>/g)].map((x) => x[1]);
+
+    let surface = null;
+    let rooms = null;
+    for (const a of attrs) {
+      if (/m²/.test(a)) surface = parseFloat(a);
+      else if (/pi[eè]ces?/.test(a)) rooms = parseFloat(a.replace(",", "."));
+    }
+
+    resultats.push({
+      external_id: m[2],
+      url: m[2],
+      title: m[1],
+      locality: cityMatch ? cityMatch[1].trim() : null,
+      address: cityMatch ? cityMatch[1].trim() : null,
+      loyer_brut: priceMatch ? parseFloat(priceMatch[1].replace(/[,']/g, "")) : null,
+      rooms: rooms,
+      surface: surface,
+      image: null,
+    });
+  }
+  return resultats;
+}
+
 function bienKey(locality, rooms, surface, sourceId, externalId) {
   return `repli:${sourceId}:${externalId}`;
 }
@@ -266,6 +303,7 @@ async function extraireEtStocker(db, source, html) {
   else if (config.adapter === "regisseurs_wp_card") items = extraireRegisseurs(html);
   else if (config.adapter === "rosset_immomig") items = extraireRosset(html);
   else if (config.adapter === "regiefonciere_card") items = extraireRegieFonciere(html);
+  else if (config.adapter === "spg_immomig") items = extraireSPG(html);
 
   for (const item of items) {
     if (EXTERNAL_IDS_EXCLUS.has(item.external_id)) continue;

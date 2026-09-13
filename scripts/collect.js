@@ -25,11 +25,22 @@ async function main() {
 
     for (const url of urls) {
       try {
-        const page = await browser.newPage();
-        await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
-        if (config.js_render) await page.waitForTimeout(6000);
-        const html = await page.content();
-        await page.close();
+        let html;
+        if (config.user_agent === "googlebot") {
+          // Contournement gratuit : certains sites servent une version
+          // pré-rendue (sans JS) aux robots des moteurs de recherche.
+          // Une requête simple suffit alors, pas besoin de navigateur.
+          const res2 = await fetch(url, {
+            headers: { "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" },
+          });
+          html = await res2.text();
+        } else {
+          const page = await browser.newPage();
+          await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+          if (config.js_render) await page.waitForTimeout(6000);
+          html = await page.content();
+          await page.close();
+        }
 
         const ingestRes = await fetch(`${WORKER_URL}/api/ingest-raw`, {
           method: "POST",
