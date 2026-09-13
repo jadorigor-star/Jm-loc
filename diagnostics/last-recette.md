@@ -1,3 +1,4 @@
-commit repo (HEAD) : deca786a2eafac59201609268f5e6efb71db4ab0
-health: 200 {"ok":true,"sources":42,"deployed_at":"2026-09-11T08:39:54.106Z"}
-preferences: 500 {"ok":false,"error":"D1_ERROR: Your account has exceeded D1's free tier daily row read limit. Upgrade to a paid plan or wait until tomorrow (midnight UTC) to continue. See https://developers.cloudflare.com/d1/platform/limits/ for more details.","stack":"Error: D1_ERROR: Your account has exceeded D1's free tier daily row read limit. Upgrade to a paid plan or wait until tomorrow (midnight UTC) to continue. See https://developers.cloudflare.com/d1/platform/limits/ for more details.\n    at D1DatabaseSessionAlwaysPrimary._sendOrThrow (cloudflare-internal:d1-api:188:19)\n    at async cloudflare-internal:d1-api:497:19\n    at async Object.fetch (worker.js:319:21)"}
+commit repo (HEAD) : 401c5367c6bb6a98a14378df544f21764ac42d6a
+health: 200 {"ok":true,"sources":42,"deployed_at":"2026-09-13T10:49:31.370Z"}
+preferences: 200 {"espace_id":"principal","loyer_max":2700,"charges_incluses_dans_max":0,"pieces_min":null,"date_entree":"2026-11-10","communes_exclues_json":"[\"Vernier\"]","meuble_accepte":1,"animaux_requis":"petits_ok","origine_trajet":null,"weights_json":"{}","opportunity_threshold":75,"created_at":"2026-09-10 15:09:12","email":null,"alertes_actives":0}
+stats: 200 {"annonces_actives":230,"biens":248,"sources_actives":5,"sources_productives":3,"derniere_collecte":"2026-09-13T06:56:02.387Z"}
