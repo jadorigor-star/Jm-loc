@@ -17,6 +17,10 @@ on:
         description: "Attente longue + defilement (grilles chargees en scroll/lazy)"
         required: false
         default: "false"
+      user_agent:
+        description: "User-Agent a utiliser (mode simple uniquement) : desktop ou googlebot"
+        required: false
+        default: "desktop"
 
 jobs:
   probe:
@@ -71,8 +75,13 @@ jobs:
         if: ${{ github.event.inputs.js_render != 'true' }}
         run: |
           mkdir -p diagnostics
+          if [ "${{ github.event.inputs.user_agent }}" = "googlebot" ]; then
+            UA="Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
+          else
+            UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+          fi
           status=$(curl -s -o diagnostics/probe-result.html -w "%{http_code}" "${{ github.event.inputs.url }}" \
-            -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+            -H "User-Agent: $UA")
           length=$(wc -c < diagnostics/probe-result.html)
           cat > diagnostics/probe-result.json <<EOF
           {"url": "${{ github.event.inputs.url }}", "status": "$status", "length": $length, "captured_at": "$(date -u +%FT%TZ)"}
