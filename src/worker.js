@@ -72,6 +72,15 @@ function extraireImmostreet(html) {
       ? parseFloat(prixVisible[1].replace(/'/g, "").replace(",", "."))
       : (typeof data.price === "number" ? data.price : null);
 
+    // Note (11-12.09.2026) : Cologny, Thônex et Corsier ont montré un prix
+    // cohérent en interne sur Immostreet (JSON = span visible) mais périmé
+    // par rapport à la vraie annonce d'origine. Aucun marqueur structurel
+    // fiable trouvé pour distinguer ces cas à l'avance (le marqueur
+    // "data-map-item"/"search-result-list-ad-link" essayé s'est révélé
+    // universel, pas spécifique — corrigé avant déploiement pour éviter
+    // de supprimer tous les prix). Reste un défaut de données externe non
+    // détectable depuis le HTML, à surveiller au cas par cas.
+
     // Garde-fou : un prix au m² invraisemblable (>150 CHF/m²/mois, ce qui
     // couvre déjà le très haut de gamme genevois) signale une donnée
     // mal appariée plutôt qu'une vraie annonce de luxe — on garde le prix,
@@ -238,6 +247,13 @@ function bienKey(locality, rooms, surface, sourceId, externalId) {
 // /api/ingest-raw (collecte normale) et /api/reprocess (retraitement forcé,
 // section 8 de l'amorçage : "prévoir dès le début un moyen de retraiter
 // les données existantes").
+// Annonces connues pour republier des données instables/fausses de façon
+// répétée (vérifié à la main, ex. Route de Mon-Idée 49, Thônex : 1980.-,
+// puis 2000.-, jamais le vrai 1620.- de homegate.ch). Exclues plutôt que
+// re-corrigées à chaque passage de collecte, qui écraserait sinon toute
+// correction manuelle.
+const EXTERNAL_IDS_EXCLUS = new Set(["4003382933"]);
+
 async function extraireEtStocker(db, source, html) {
   let config = {};
   try {
@@ -252,6 +268,7 @@ async function extraireEtStocker(db, source, html) {
   else if (config.adapter === "regiefonciere_card") items = extraireRegieFonciere(html);
 
   for (const item of items) {
+    if (EXTERNAL_IDS_EXCLUS.has(item.external_id)) continue;
     try {
       await stockerAnnonce(db, source.id, item);
     } catch (e) {
