@@ -347,7 +347,7 @@ export default {
               "INSERT INTO debug_captures (source_name, url, html, captured_at) VALUES (?,?,?,?) " +
                 "ON CONFLICT(source_name) DO UPDATE SET url=excluded.url, html=excluded.html, captured_at=excluded.captured_at"
             )
-            .bind(cleCapture, body.url || "", html.slice(0, 900000), new Date().toISOString())
+            .bind(cleCapture, body.url || "", html.slice(0, 2000000), new Date().toISOString())
             .run();
         } catch (e) {
           return json({ ok: false, stage: "debug_capture", error: String(e && e.message ? e.message : e) }, 500);
