@@ -385,10 +385,13 @@ export default {
               "INSERT INTO debug_captures (source_name, url, html, captured_at) VALUES (?,?,?,?) " +
                 "ON CONFLICT(source_name) DO UPDATE SET url=excluded.url, html=excluded.html, captured_at=excluded.captured_at"
             )
-            .bind(cleCapture, body.url || "", html.slice(0, 2000000), new Date().toISOString())
+            .bind(cleCapture, body.url || "", html.slice(0, 900000), new Date().toISOString())
             .run();
         } catch (e) {
-          return json({ ok: false, stage: "debug_capture", error: String(e && e.message ? e.message : e) }, 500);
+          // Un échec de journalisation (ex. quota D1 épuisé) ne doit
+          // jamais empêcher l'extraction et le stockage réels — sinon
+          // toute la collecte s'arrête pour un simple problème de
+          // diagnostic. On continue, sans capture de secours cette fois.
         }
 
         const srcRes = await db.prepare("SELECT * FROM sources WHERE name=?").bind(sourceName).all();
