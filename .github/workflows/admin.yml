@@ -14,18 +14,14 @@ on:
 jobs:
   appel:
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
     steps:
-      - name: Appel
+      - name: Appel et publication
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mkdir -p diagnostics
-          curl -s -X POST "https://jm-loc.jadorigor.workers.dev${{ github.event.inputs.route }}" \
+          REPONSE=$(curl -s -X POST "https://jm-loc.jadorigor.workers.dev${{ github.event.inputs.route }}" \
             -H "content-type: application/json" \
-            -d '${{ github.event.inputs.body }}' > diagnostics/admin-result.json
-      - name: Committer
-        run: |
-          git config user.name "jm-loc-bot"
-          git config user.email "actions@users.noreply.github.com"
-          git checkout -B diag-scratch
-          git add diagnostics/admin-result.json
-          git commit -m "admin: ${{ github.event.inputs.route }}" || echo "rien"
-          git push -f origin diag-scratch
+            -d '${{ github.event.inputs.body }}')
+          gh issue create --title "admin: ${{ github.event.inputs.route }}" --body "$REPONSE" --repo jadorigor-star/Jm-loc
