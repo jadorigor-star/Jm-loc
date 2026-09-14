@@ -815,6 +815,24 @@ export default {
         return json(sortie);
       }
 
+      if (url.pathname === "/api/debug-extract" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const nomSource = body.source_name;
+        const srcRes = await db.prepare("SELECT * FROM sources WHERE name=?").bind(nomSource).all();
+        const source = srcRes.results[0];
+        if (!source) return json({ ok: false, error: "source inconnue" }, 404);
+        const capRes = await db.prepare("SELECT html FROM debug_captures WHERE source_name LIKE ? LIMIT 1").bind(nomSource + " :: %").all();
+        if (!capRes.results[0]) return json({ ok: false, error: "pas de capture" }, 404);
+        let config = {};
+        try { config = JSON.parse(source.config_json || "{}"); } catch (e) {}
+        const html = capRes.results[0].html;
+        let items = [];
+        if (config.adapter === "argecil_card") items = extraireArgecil(html);
+        else if (config.adapter === "progrimm_card") items = extraireProgrimm(html);
+        else if (config.adapter === "immomig_generique") items = extraireImmoMig(html, config.domaine || "");
+        return json({ ok: true, nb: items.length, items });
+      }
+
       if (url.pathname === "/api/stats") {
         const st = await db
           .prepare(
