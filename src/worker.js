@@ -276,6 +276,48 @@ function extraireSPG(html) {
   return resultats;
 }
 
+// Extraction pour Naef : toutes leurs annonces sont embarquées telles
+// quelles en JSON dans une variable JS "all_db_datas", au-delà de ce que
+// n'importe quel scraping de carte HTML aurait trouvé (page de 4 Mo+).
+// Aucun rendu JS requis pour l'obtenir. Vérifié 14.09.2026.
+function extraireNaef(html) {
+  const resultats = [];
+  const marqueur = "var all_db_datas = ";
+  const debut = html.indexOf(marqueur);
+  if (debut === -1) return resultats;
+  const debut2 = debut + marqueur.length;
+  const fin = html.indexOf("];", debut2);
+  if (fin === -1) return resultats;
+
+  let tableau;
+  try {
+    tableau = JSON.parse(html.slice(debut2, fin + 1));
+  } catch (e) {
+    return resultats;
+  }
+
+  for (const item of tableau) {
+    if (item.type_code !== "APP" && item.type_code !== "MAI") continue;
+    if (item.adresse_canton !== "Genève") continue;
+    const surDemande = item.loyer_sur_demande === "oui";
+    const loyerBrut = parseFloat(item.loyer_mensuel_brut);
+    const loyerNet = parseFloat(item.loyer_mensuel_net);
+
+    resultats.push({
+      external_id: item.no_dossier,
+      url: item.link,
+      title: item.intitule_plaquette || item.type_designation_fr || "",
+      locality: item.adresse_localite || null,
+      address: item.adresse_localite || null,
+      loyer_brut: surDemande ? null : (!isNaN(loyerBrut) && loyerBrut > 0 ? loyerBrut : (!isNaN(loyerNet) && loyerNet > 0 ? loyerNet : null)),
+      rooms: item.nb_pieces != null && item.nb_pieces !== "" ? parseFloat(item.nb_pieces) : null,
+      surface: item.surface_habitable ? parseFloat(item.surface_habitable) : null,
+      image: item.imgs && item.imgs[0] ? item.imgs[0] : null,
+    });
+  }
+  return resultats;
+}
+
 function bienKey(locality, rooms, surface, sourceId, externalId) {
   return `repli:${sourceId}:${externalId}`;
 }
@@ -304,6 +346,7 @@ async function extraireEtStocker(db, source, html) {
   else if (config.adapter === "rosset_immomig") items = extraireRosset(html);
   else if (config.adapter === "regiefonciere_card") items = extraireRegieFonciere(html);
   else if (config.adapter === "spg_immomig") items = extraireSPG(html);
+  else if (config.adapter === "naef_embedded_json") items = extraireNaef(html);
 
   for (const item of items) {
     if (EXTERNAL_IDS_EXCLUS.has(item.external_id)) continue;
