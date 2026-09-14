@@ -481,15 +481,19 @@ async function extraireEtStocker(db, source, html) {
   else if (config.adapter === "argecil_card") items = extraireArgecil(html);
   else if (config.adapter === "progrimm_card") items = extraireProgrimm(html);
 
+  const erreurs = [];
   for (const item of items) {
     if (EXTERNAL_IDS_EXCLUS.has(item.external_id)) continue;
     try {
       await stockerAnnonce(db, source.id, item);
     } catch (e) {
-      // on continue les autres annonces même si une échoue
+      erreurs.push(String((e && e.message) || e));
     }
   }
-  return items.length;
+  if (erreurs.length > 0) {
+    return { count: items.length, erreur: erreurs.slice(0, 3).join(" | ").slice(0, 500) };
+  }
+  return { count: items.length, erreur: null };
 }
 
 async function stockerAnnonce(db, sourceId, item) {
@@ -576,21 +580,22 @@ export default {
           return json({ ok: true, note: "source inconnue, capture enregistrée seulement" });
         }
 
-        const nbAnnonces = await extraireEtStocker(db, source, html);
+        const resultat = await extraireEtStocker(db, source, html);
 
         await db
           .prepare(
-            "UPDATE sources SET last_checked=?, last_productive_count=?, state=?, last_error=NULL WHERE id=?"
+            "UPDATE sources SET last_checked=?, last_productive_count=?, state=?, last_error=? WHERE id=?"
           )
           .bind(
             new Date().toISOString(),
-            nbAnnonces,
-            nbAnnonces > 0 ? "productive" : "accessible_sans_extraction",
+            resultat.count,
+            resultat.count > 0 && !resultat.erreur ? "productive" : resultat.erreur ? "erreur_stockage" : "accessible_sans_extraction",
+            resultat.erreur,
             source.id
           )
           .run();
 
-        return json({ ok: true, source: sourceName, source_id: source.id, annonces_extraites: nbAnnonces });
+        return json({ ok: true, source: sourceName, source_id: source.id, annonces_extraites: resultat.count, erreur_stockage: resultat.erreur });
       }
 
       // --- Retraitement forcé, sans re-télécharger : rejoue l'extraction sur
@@ -612,11 +617,14 @@ export default {
           .all();
 
         let total = 0;
+        const erreursRetraitement = [];
         for (const row of capturesRes.results) {
-          total += await extraireEtStocker(db, source, row.html);
+          const r = await extraireEtStocker(db, source, row.html);
+          total += r.count;
+          if (r.erreur) erreursRetraitement.push(r.erreur);
         }
 
-        return json({ ok: true, source: nomSource, pages_retraitees: capturesRes.results.length, annonces_extraites: total });
+        return json({ ok: true, source: nomSource, pages_retraitees: capturesRes.results.length, annonces_extraites: total, erreurs: erreursRetraitement });
       }
 
       // --- Finalisation d'une collecte : marque "removed" tout ce qui
