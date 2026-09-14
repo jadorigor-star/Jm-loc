@@ -464,6 +464,43 @@ function bienKey(locality, rooms, surface, sourceId, externalId) {
 // correction manuelle.
 const EXTERNAL_IDS_EXCLUS = new Set(["4003382933"]);
 
+// Communes officielles du canton de Genève (45), pour vérifier le
+// périmètre. Le nom brut d'une annonce est souvent un quartier, une
+// variante de casse ou un préfixe postal plutôt que le nom de commune
+// officiel — on corrige les cas connus avant de rejeter quoi que ce soit.
+const COMMUNES_GENEVE = new Set([
+  "aire-la-ville","anières","avully","avusy","bardonnex","bellevue","bernex",
+  "carouge","cartigny","céligny","chancy","chêne-bougeries","chêne-bourg",
+  "choulex","collex-bossy","collonge-bellerive","cologny","confignon",
+  "corsier","dardagny","genève","genthod","le grand-saconnex","gy",
+  "hermance","jussy","laconnex","lancy","meinier","meyrin","onex",
+  "perly-certoux","plan-les-ouates","pregny-chambésy","presinge","puplinge",
+  "russin","satigny","soral","thônex","troinex","vandœuvres","vernier",
+  "versoix","veyrier",
+]);
+
+const ALIAS_LOCALITE_GENEVE = {
+  "geneve": "Genève", "genf": "Genève", "geneva": "Genève",
+  "carouge ge": "Carouge", "corsier ge": "Corsier",
+  "chambésy": "Pregny-Chambésy", "chambesy": "Pregny-Chambésy",
+  "vésenaz": "Collonge-Bellerive", "vesenaz": "Collonge-Bellerive",
+  "petit-lancy": "Lancy", "grand-lancy": "Lancy",
+  "cointrin": "Le Grand-Saconnex", "conches": "Chêne-Bougeries",
+  "la plaine": "Dardagny", "collex": "Collex-Bossy",
+  "vessy": "Veyrier", "les acacias": "Genève", "le lignon": "Vernier",
+};
+
+// Normalise une localité brute vers son nom de commune officiel si connu,
+// et indique si elle appartient bien au canton de Genève.
+function normaliserLocaliteGeneve(brut) {
+  if (!brut) return { locality: brut, dansGeneve: true }; // pas de donnée : on ne rejette pas à l'aveugle
+  let nettoye = brut.replace(/^\d{4}\s+/, "").trim(); // retire un préfixe postal ("1202 Genève")
+  const cle = nettoye.toLowerCase();
+  if (ALIAS_LOCALITE_GENEVE[cle]) nettoye = ALIAS_LOCALITE_GENEVE[cle];
+  const dansGeneve = COMMUNES_GENEVE.has(nettoye.toLowerCase());
+  return { locality: nettoye, dansGeneve };
+}
+
 async function extraireEtStocker(db, source, html) {
   let config = {};
   try {
@@ -482,6 +519,17 @@ async function extraireEtStocker(db, source, html) {
   else if (config.adapter === "regimo_card") items = extraireRegimo(html);
   else if (config.adapter === "argecil_card") items = extraireArgecil(html);
   else if (config.adapter === "progrimm_card") items = extraireProgrimm(html);
+
+  // Périmètre strict canton de Genève : les régies suisses actives sur
+  // plusieurs cantons (SPG, Naef...) ramènent parfois des biens hors
+  // Genève (ex. Prilly VD, Neuchâtel) — on les exclut plutôt que de fausser
+  // le périmètre annoncé de l'application.
+  items = items.filter((item) => {
+    const { locality, dansGeneve } = normaliserLocaliteGeneve(item.locality);
+    item.locality = locality;
+    if (item.address) item.address = item.address;
+    return dansGeneve;
+  });
 
   const erreurs = [];
   for (const item of items) {
@@ -584,20 +632,31 @@ export default {
 
         const resultat = await extraireEtStocker(db, source, html);
 
+        // Compte réel des annonces actives pour cette source, plutôt que
+        // le seul résultat de la dernière page traitée — sinon une source
+        // à plusieurs pages affiche le compte de sa dernière page (parfois
+        // vide), donnant l'impression trompeuse d'une source en panne
+        // (constaté sur Comptoir Immobilier lors de l'audit du 14.09.2026).
+        const compteReel = await db
+          .prepare("SELECT COUNT(*) as n FROM listings WHERE source_id=? AND status='active'")
+          .bind(source.id)
+          .all();
+        const totalActif = compteReel.results[0] ? compteReel.results[0].n : resultat.count;
+
         await db
           .prepare(
             "UPDATE sources SET last_checked=?, last_productive_count=?, state=?, last_error=? WHERE id=?"
           )
           .bind(
             new Date().toISOString(),
-            resultat.count,
-            resultat.count > 0 && !resultat.erreur ? "productive" : resultat.erreur ? "erreur_stockage" : "accessible_sans_extraction",
+            totalActif,
+            totalActif > 0 && !resultat.erreur ? "productive" : resultat.erreur ? "erreur_stockage" : "accessible_sans_extraction",
             resultat.erreur,
             source.id
           )
           .run();
 
-        return json({ ok: true, source: sourceName, source_id: source.id, annonces_extraites: resultat.count, erreur_stockage: resultat.erreur });
+        return json({ ok: true, source: sourceName, source_id: source.id, annonces_extraites: resultat.count, total_actif: totalActif, erreur_stockage: resultat.erreur });
       }
 
       // --- Retraitement forcé, sans re-télécharger : rejoue l'extraction sur
@@ -644,12 +703,26 @@ export default {
         const source = srcRes.results[0];
         if (!source) return json({ ok: false, error: "source inconnue" }, 404);
 
+        const maintenant = new Date().toISOString();
         const res = await db
           .prepare(
             "UPDATE listings SET status='removed', missing_since=? WHERE source_id=? AND status='active' AND last_seen<?"
           )
-          .bind(new Date().toISOString(), source.id, depuis)
+          .bind(maintenant, source.id, depuis)
           .run();
+
+        // Un bien dont l'unique annonce vient d'être retirée doit l'être
+        // aussi — sinon des fiches orphelines s'accumulent indéfiniment
+        // (375 fiches pour 313 annonces actives constaté lors de l'audit
+        // du 14.09.2026).
+        await db
+          .prepare(
+            `UPDATE biens SET status='removed' WHERE status='actif' AND best_listing_id IN
+             (SELECT id FROM listings WHERE source_id=? AND status='removed' AND missing_since=?)`
+          )
+          .bind(source.id, maintenant)
+          .run()
+          .catch(() => {});
 
         return json({ ok: true, source: nomSource, annonces_retirees: res.meta.changes });
       }
