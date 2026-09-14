@@ -21,19 +21,19 @@ jobs:
 
       - name: /api/health répond
         run: |
-          code=$(curl -s -o /tmp/health.json -w "%{http_code}" "https://jm-loc.jadorigor.workers.dev/api/health")
+          code=$(curl -s -o /tmp/health.json -w "%{http_code}" "https://jm-loc.jm-loco.workers.dev/api/health")
           echo "health: $code $(cat /tmp/health.json)" >> diagnostics/last-recette.md
           [ "$code" = "200" ] || { echo "ÉCHEC /api/health"; exit 1; }
 
       - name: /api/preferences répond
         run: |
-          code=$(curl -s -o /tmp/prefs.json -w "%{http_code}" "https://jm-loc.jadorigor.workers.dev/api/preferences")
+          code=$(curl -s -o /tmp/prefs.json -w "%{http_code}" "https://jm-loc.jm-loco.workers.dev/api/preferences")
           echo "preferences: $code $(cat /tmp/prefs.json)" >> diagnostics/last-recette.md
           [ "$code" = "200" ] || { echo "ÉCHEC /api/preferences"; exit 1; }
 
       - name: /api/stats répond
         run: |
-          code=$(curl -s -o /tmp/stats.json -w "%{http_code}" "https://jm-loc.jadorigor.workers.dev/api/stats")
+          code=$(curl -s -o /tmp/stats.json -w "%{http_code}" "https://jm-loc.jm-loco.workers.dev/api/stats")
           echo "stats: $code $(cat /tmp/stats.json)" >> diagnostics/last-recette.md
           [ "$code" = "200" ] || { echo "ÉCHEC /api/stats"; exit 1; }
 

@@ -21,7 +21,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          REPONSE=$(curl -s -X POST "https://jm-loc.jadorigor.workers.dev${{ github.event.inputs.route }}" \
+          REPONSE=$(curl -s -X POST "https://jm-loc.jm-loco.workers.dev${{ github.event.inputs.route }}" \
             -H "content-type: application/json" \
             -d '${{ github.event.inputs.body }}')
           gh issue create --title "admin: ${{ github.event.inputs.route }}" --body "$REPONSE" --repo jadorigor-star/Jm-loc

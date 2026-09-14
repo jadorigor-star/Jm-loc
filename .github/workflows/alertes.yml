@@ -20,7 +20,7 @@ jobs:
       - name: Vérifier les nouveaux biens correspondants
         id: verif
         run: |
-          curl -s -X POST "https://jm-loc.jadorigor.workers.dev/api/alertes/verifier" > /tmp/alertes.json
+          curl -s -X POST "https://jm-loc.jm-loco.workers.dev/api/alertes/verifier" > /tmp/alertes.json
           mkdir -p diagnostics
           cp /tmp/alertes.json diagnostics/last-alertes.json
           count=$(node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/alertes.json','utf8')).length)")

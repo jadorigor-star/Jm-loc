@@ -29,7 +29,7 @@ jobs:
       - name: Collecter les sources actives
         run: node scripts/collect.js
         env:
-          WORKER_URL: https://jm-loc.jadorigor.workers.dev
+          WORKER_URL: https://jm-loc.jm-loco.workers.dev
 
       - name: Committer le diagnostic
         run: |
