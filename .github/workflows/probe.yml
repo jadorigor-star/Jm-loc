@@ -80,7 +80,7 @@ jobs:
           else
             UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
           fi
-          status=$(curl -s -o diagnostics/probe-result.html -w "%{http_code}" "${{ github.event.inputs.url }}" \
+          status=$(curl -sL -o diagnostics/probe-result.html -w "%{http_code}" "${{ github.event.inputs.url }}" \
             -H "User-Agent: $UA")
           length=$(wc -c < diagnostics/probe-result.html)
           cat > diagnostics/probe-result.json <<EOF
