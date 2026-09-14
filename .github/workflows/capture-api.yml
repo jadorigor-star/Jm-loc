@@ -1,0 +1,62 @@
+name: capture-api
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "URL a ouvrir dans un navigateur reel"
+        required: true
+      filtre:
+        description: "Sous-chaine a chercher dans les reponses reseau (ex: api, graphql, search)"
+        required: false
+        default: "api"
+
+jobs:
+  capturer:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Installer Playwright
+        run: |
+          npm init -y
+          npm install playwright
+          npx playwright install chromium --with-deps
+      - name: Capturer le trafic reseau
+        run: |
+          node -e '
+          const { chromium } = require("playwright");
+          (async () => {
+            const browser = await chromium.launch();
+            const page = await browser.newPage();
+            const captures = [];
+            page.on("response", async (resp) => {
+              try {
+                const url = resp.url();
+                const ct = resp.headers()["content-type"] || "";
+                if (url.includes(process.env.FILTRE) && ct.includes("json")) {
+                  const body = await resp.text();
+                  captures.push({ url, status: resp.status(), body: body.slice(0, 20000) });
+                }
+              } catch (e) {}
+            });
+            await page.goto(process.env.PROBE_URL, { waitUntil: "networkidle", timeout: 45000 }).catch(() => {});
+            await page.waitForTimeout(5000);
+            require("fs").mkdirSync("diagnostics", { recursive: true });
+            require("fs").writeFileSync("diagnostics/api-capture.json", JSON.stringify(captures, null, 2));
+            await browser.close();
+          })();'
+        env:
+          PROBE_URL: ${{ github.event.inputs.url }}
+          FILTRE: ${{ github.event.inputs.filtre }}
+      - name: Committer
+        run: |
+          git config user.name "jm-loc-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add diagnostics/api-capture.json
+          git commit -m "capture API: ${{ github.event.inputs.url }}" || echo "rien"
+          git push
