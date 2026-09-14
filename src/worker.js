@@ -363,6 +363,42 @@ function extraireRegimo(html) {
   return resultats;
 }
 
+// Extraction pour Argecil (plugin WordPress "realforce_catalog"). Chaque
+// annonce porte ses données en attributs data-object-* directement sur la
+// carte — pas de localité explicite disponible, filtrage par mots-clés
+// dans le titre pour ne garder que le résidentiel. Vérifié 14.09.2026.
+function extraireArgecil(html) {
+  const resultats = [];
+  const decoder = (s) => s.replace(/&#0?39;/g, "").replace(/&amp;/g, "&");
+  const re = /<div class="realforce_catalog-list__item"([^>]*)>/g;
+  let m;
+  while ((m = re.exec(html)) !== null) {
+    const attrs = m[1];
+    const get = (name) => {
+      const mm = attrs.match(new RegExp('data-object-' + name + '="([^"]*)"'));
+      return mm ? mm[1] : null;
+    };
+    const nom = decoder(get("name") || "");
+    if (!/appartement|duplex|studio|villa|maison|attique/i.test(nom)) continue;
+    if (/bureau|local|commerce|arcade|d[ée]p[ôo]t|parking|garage/i.test(nom)) continue;
+
+    const priceRaw = get("price") || "";
+    const priceNum = /demande/i.test(priceRaw) ? null : parseFloat(decoder(priceRaw).replace(/[^\d.,]/g, "").replace(",", "."));
+
+    resultats.push({
+      external_id: get("link") || String(m.index),
+      url: get("link"),
+      title: nom,
+      loyer_brut: priceNum && priceNum > 0 ? priceNum : null,
+      rooms: get("bed") ? parseFloat(get("bed")) : null,
+      surface: get("area") ? parseFloat(get("area")) : null,
+      locality: null,
+      image: null,
+    });
+  }
+  return resultats;
+}
+
 function bienKey(locality, rooms, surface, sourceId, externalId) {
   return `repli:${sourceId}:${externalId}`;
 }
@@ -393,6 +429,7 @@ async function extraireEtStocker(db, source, html) {
   else if (config.adapter === "spg_immomig") items = extraireSPG(html);
   else if (config.adapter === "naef_embedded_json") items = extraireNaef(html);
   else if (config.adapter === "regimo_card") items = extraireRegimo(html);
+  else if (config.adapter === "argecil_card") items = extraireArgecil(html);
 
   for (const item of items) {
     if (EXTERNAL_IDS_EXCLUS.has(item.external_id)) continue;
