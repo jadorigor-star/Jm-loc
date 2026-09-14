@@ -399,6 +399,48 @@ function extraireArgecil(html) {
   return resultats;
 }
 
+// Extraction pour Progrimm (thème Avada/Fusion Builder + plugin RealForce
+// CRM, même moteur qu'Argecil mais présentation différente). Vérifié
+// 14.09.2026.
+function extraireProgrimm(html) {
+  const resultats = [];
+  const decoder = (s) => s.replace(/&#0?39;/g, "").replace(/&#8211;/g, "-").replace(/&amp;/g, "&");
+  const starts = [];
+  const rePrix = /class="prix-vignette">/g;
+  let m;
+  while ((m = rePrix.exec(html)) !== null) starts.push(m.index);
+
+  for (let i = 0; i < starts.length; i++) {
+    const debutFenetre = Math.max(0, starts[i] - 1600);
+    const finFenetre = i + 1 < starts.length ? starts[i + 1] : starts[i] + 4000;
+    const bloc = html.slice(debutFenetre, finFenetre);
+    const hrefMatch = bloc.match(/href="(https:\/\/progrimm\.com\/rental-listings\/[^"]+)"/);
+    if (!hrefMatch) continue;
+
+    const titleMatch = bloc.match(/<h3 class="fusion-title-heading[^"]*"[^>]*>([^<]+)<\/h3>/);
+    const locMatch = bloc.match(/class="nom_lieu">[\s\S]*?<\/i>\s*([^<]+)<\/div>/);
+    const priceMatch = bloc.match(/prix-vignette">([^<]+)</);
+    const chambresMatch = bloc.match(/icone-chambre[^>]*\/>\s*<span class="property_thumb_value">([\d.]+)/);
+    const surfaceMatch = bloc.match(/icone-surface[^>]*\/>\s*<span class="property_thumb_value">(\d+)/);
+    const priceRaw = priceMatch ? decoder(priceMatch[1]) : "";
+    const priceNum = /demande/i.test(priceRaw) ? null : parseFloat(priceRaw.replace(/[^\d.,]/g, "").replace(",", "."));
+    const title = titleMatch ? decoder(titleMatch[1]).trim() : "";
+    if (/bureau|local|arcade|commerce|d[ée]p[ôo]t|poste|courtier/i.test(title)) continue;
+
+    resultats.push({
+      external_id: hrefMatch[1],
+      url: hrefMatch[1],
+      title,
+      locality: locMatch ? decoder(locMatch[1]).trim() : null,
+      loyer_brut: priceNum,
+      rooms: chambresMatch ? parseFloat(chambresMatch[1]) : null,
+      surface: surfaceMatch ? parseFloat(surfaceMatch[1]) : null,
+      image: null,
+    });
+  }
+  return resultats;
+}
+
 function bienKey(locality, rooms, surface, sourceId, externalId) {
   return `repli:${sourceId}:${externalId}`;
 }
@@ -430,6 +472,7 @@ async function extraireEtStocker(db, source, html) {
   else if (config.adapter === "naef_embedded_json") items = extraireNaef(html);
   else if (config.adapter === "regimo_card") items = extraireRegimo(html);
   else if (config.adapter === "argecil_card") items = extraireArgecil(html);
+  else if (config.adapter === "progrimm_card") items = extraireProgrimm(html);
 
   for (const item of items) {
     if (EXTERNAL_IDS_EXCLUS.has(item.external_id)) continue;
