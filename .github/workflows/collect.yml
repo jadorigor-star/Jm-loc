@@ -2,8 +2,9 @@ name: collect
 
 on:
   schedule:
-    # Toutes les 20 minutes — pas de Cron Triggers Cloudflare (défaut connu :
-    # arrêt silencieux). Rythme location, pas vente (section 6 de l'amorçage).
+    # Toutes les heures — réduit depuis 20 minutes pour ménager le quota D1
+    # partagé avec les autres projets. Pas de Cron Triggers Cloudflare
+    # (défaut connu : arrêt silencieux).
     - cron: "0 * * * *"
   workflow_dispatch: {}
 
