@@ -4,7 +4,7 @@ on:
   schedule:
     # Toutes les 20 minutes — pas de Cron Triggers Cloudflare (défaut connu :
     # arrêt silencieux). Rythme location, pas vente (section 6 de l'amorçage).
-    - cron: "*/20 * * * *"
+    - cron: "0 * * * *"
   workflow_dispatch: {}
 
 jobs:
