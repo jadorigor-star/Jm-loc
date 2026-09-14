@@ -5,7 +5,7 @@ compatibility_date = "2026-09-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "jm-loc"
-database_id = "f6b353be-40e7-4b96-ae6f-463997352021"
+database_id = "505a71dc-a9e3-4443-8906-77d7b06c9f8b"
 
 # Interface servie en fichiers statiques, jamais en template string dans le
 # Worker (cf. section 8 de l'amorçage : deux pannes d'affichage sur le
