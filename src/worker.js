@@ -318,6 +318,51 @@ function extraireNaef(html) {
   return resultats;
 }
 
+// Extraction pour Régimo Genève (plateforme TYPO3 "realestate"). Vérifié
+// 14.09.2026. Le titre affiché (h5) ne correspondait pas toujours de façon
+// fiable à la bonne fiche dans nos tests — on utilise l'adresse comme titre
+// plutôt que de risquer une association erronée entre deux annonces.
+function extraireRegimo(html) {
+  const resultats = [];
+  const starts = [];
+  const reCarte = /<div class="card" data-aos="fade-up">/g;
+  let m;
+  while ((m = reCarte.exec(html)) !== null) starts.push(m.index);
+
+  const decoder = (s) => s.replace(/&#0?39;/g, "").replace(/&#8217;/g, "");
+
+  for (let i = 0; i < starts.length; i++) {
+    const fin = i + 1 < starts.length ? starts[i + 1] : html.length;
+    const bloc = html.slice(starts[i], fin);
+    const hrefMatch = bloc.match(/href="([^"]*mietinteressentendetail[^"]+)"/);
+    if (!hrefMatch) continue;
+
+    const typeMatch = bloc.match(/icon-icon-home"><\/i>\s*([\s\S]*?)<\/div>/);
+    const type = typeMatch ? decoder(typeMatch[1]).replace(/\s+/g, " ").trim() : "";
+    if (type && !/appartement|maison|villa/i.test(type)) continue;
+
+    const locMatch = bloc.match(/icon-icon-location"><\/i>\s*([\s\S]*?)<\/div>/);
+    const surfaceMatch = bloc.match(/icon-icon-area">\s*<\/i>(\d+)\s*m/);
+    const roomsMatch = bloc.match(/icon-icon-exit">\s*<\/i>([\d.]+)/);
+    const priceMatch = bloc.match(/CHF\/mois\s*<b[^>]*>\s*([\d&#;]+)\s*\.[-–]/);
+    const loc = locMatch ? decoder(locMatch[1]).replace(/\s+/g, " ").trim() : "";
+    const idMatch = hrefMatch[1].match(/(\d+)$/);
+
+    resultats.push({
+      external_id: idMatch ? idMatch[1] : String(starts[i]),
+      url: hrefMatch[1].startsWith("http") ? hrefMatch[1] : "https://regimo-geneve.ch" + hrefMatch[1],
+      title: loc,
+      address: loc,
+      locality: loc.split(",").pop().replace(/^\d+\s*/, "").trim(),
+      surface: surfaceMatch ? parseFloat(surfaceMatch[1]) : null,
+      rooms: roomsMatch ? parseFloat(roomsMatch[1]) : null,
+      loyer_brut: priceMatch ? parseFloat(decoder(priceMatch[1])) : null,
+      image: null,
+    });
+  }
+  return resultats;
+}
+
 function bienKey(locality, rooms, surface, sourceId, externalId) {
   return `repli:${sourceId}:${externalId}`;
 }
@@ -347,6 +392,7 @@ async function extraireEtStocker(db, source, html) {
   else if (config.adapter === "regiefonciere_card") items = extraireRegieFonciere(html);
   else if (config.adapter === "spg_immomig") items = extraireSPG(html);
   else if (config.adapter === "naef_embedded_json") items = extraireNaef(html);
+  else if (config.adapter === "regimo_card") items = extraireRegimo(html);
 
   for (const item of items) {
     if (EXTERNAL_IDS_EXCLUS.has(item.external_id)) continue;
