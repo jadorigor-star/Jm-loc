@@ -174,23 +174,29 @@ function extraireRegisseurs(html) {
 
 // Extraction pour Rosset (plateforme ImmoMig) : cartes avec classes
 // caract_location/caract_price/caract_surface/caract_rooms. Vérifié 11.09.2026.
-function extraireRosset(html) {
+// Extraction générique pour la plateforme ImmoMig (immomigimg.ch), partagée
+// par plusieurs régies (Rosset, Régisseurs du Léman...) avec un thème
+// identique. Fenêtre élargie à 8000 car les icônes SVG intégrées sont
+// volumineuses ; le format du prix varie légèrement d'un site à l'autre
+// (espace ou &nbsp; avant le nombre) — les deux sont acceptés. Vérifié et
+// corrigé le 14.09.2026 (Régisseurs du Léman).
+function extraireImmoMig(html, domaine) {
   var resultats = [];
-  var re = /<a class="box_inner box_inner_link" href="([^"]+)"/g;
+  var re = /<a class="box_inner box_inner_link"[^>]*href="([^"]+)"/g;
   var m;
   while ((m = re.exec(html)) !== null) {
     if (!/a-louer-appartement|a-louer-maison/.test(m[1])) continue;
-    var bloc = html.slice(m.index, m.index + 4000);
+    var bloc = html.slice(m.index, m.index + 8000);
     var titleMatch = bloc.match(/<div class="h2">([^<]+)<\/div>/);
-    var locMatch = bloc.match(/caract_location[\s\S]{0,400}?<div class="value">\s*([^<]+?)\s*<\/div>/);
-    var priceMatch = bloc.match(/caract_price[\s\S]{0,400}?CHF&nbsp;([\d'.,]+)\.-\s*\/mois/);
-    var surfaceMatch = bloc.match(/caract_surface[\s\S]{0,500}?<span class="value">~?\s*(\d+)\s*m/);
-    var roomsMatch = bloc.match(/caract_rooms[\s\S]{0,500}?<span class="value">([\d.,]+)<\/span>/);
+    var locMatch = bloc.match(/caract_location[\s\S]{0,3000}?<div class="value">\s*([^<]+?)\s*<\/div>/);
+    var priceMatch = bloc.match(/caract_price[\s\S]{0,3000}?CHF[\s&nbsp;]+([\d'.,]+)\.-\s*\/mois/);
+    var surfaceMatch = bloc.match(/caract_surface[\s\S]{0,3000}?<span class="value">~?\s*(\d+)\s*m/);
+    var roomsMatch = bloc.match(/caract_rooms[\s\S]{0,3000}?<span class="value">([\d.,]+)<\/span>/);
     var idMatch = m[1].match(/-(\d+)\??/);
 
     resultats.push({
       external_id: idMatch ? idMatch[1] : String(m.index),
-      url: "https://immo.rosset.ch" + m[1].replace(/&amp;/g, "&"),
+      url: domaine + m[1].replace(/&amp;/g, "&"),
       title: titleMatch ? titleMatch[1].trim() : "",
       locality: locMatch ? locMatch[1].trim() : null,
       address: locMatch ? locMatch[1].trim() : null,
@@ -466,7 +472,8 @@ async function extraireEtStocker(db, source, html) {
   if (config.adapter === "immostreet_bookmark") items = extraireImmostreet(html);
   else if (config.adapter === "apimo_card") items = extraireApimo(html);
   else if (config.adapter === "regisseurs_wp_card") items = extraireRegisseurs(html);
-  else if (config.adapter === "rosset_immomig") items = extraireRosset(html);
+  else if (config.adapter === "rosset_immomig") items = extraireImmoMig(html, "https://immo.rosset.ch");
+  else if (config.adapter === "immomig_generique") items = extraireImmoMig(html, config.domaine || "");
   else if (config.adapter === "regiefonciere_card") items = extraireRegieFonciere(html);
   else if (config.adapter === "spg_immomig") items = extraireSPG(html);
   else if (config.adapter === "naef_embedded_json") items = extraireNaef(html);
