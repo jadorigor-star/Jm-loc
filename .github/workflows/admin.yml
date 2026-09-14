@@ -17,6 +17,15 @@ jobs:
     steps:
       - name: Appel
         run: |
+          mkdir -p diagnostics
           curl -s -X POST "https://jm-loc.jadorigor.workers.dev${{ github.event.inputs.route }}" \
             -H "content-type: application/json" \
-            -d '${{ github.event.inputs.body }}'
+            -d '${{ github.event.inputs.body }}' > diagnostics/admin-result.json
+      - name: Committer
+        run: |
+          git config user.name "jm-loc-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add diagnostics/admin-result.json
+          git commit -m "admin: ${{ github.event.inputs.route }}" || echo "rien"
+          git pull --rebase origin main || true
+          git push
