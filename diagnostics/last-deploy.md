@@ -1,4 +1,4 @@
 # Déploiement
-- commit: ae31044b38608f2fe5dcbf6cbc4e552a3e6cb685
-- date: 2026-09-14T19:20:14Z
-- statut job: failure
+- commit: 025fa2c6297880eb9393cdc0dc285a46457bc258
+- date: 2026-09-14T19:25:52Z
+- statut job: success
