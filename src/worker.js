@@ -399,6 +399,7 @@ function extraireArgecil(html) {
       rooms: get("bed") ? parseFloat(get("bed")) : null,
       surface: get("area") ? parseFloat(get("area")) : null,
       locality: null,
+      address: null,
       image: null,
     });
   }
@@ -438,6 +439,7 @@ function extraireProgrimm(html) {
       url: hrefMatch[1],
       title,
       locality: locMatch ? decoder(locMatch[1]).trim() : null,
+      address: null,
       loyer_brut: priceNum,
       rooms: chambresMatch ? parseFloat(chambresMatch[1]) : null,
       surface: surfaceMatch ? parseFloat(surfaceMatch[1]) : null,
