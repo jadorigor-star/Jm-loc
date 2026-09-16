@@ -237,6 +237,7 @@
   <div class="marque">
     <h1>jm<span>·</span>loc</h1>
     <div class="compteur" id="compteur">chargement…</div>
+    <div class="compteur" id="derniere-maj" style="opacity:0.7"></div>
   </div>
   <div class="onglets">
     <button class="onglet actif" data-onglet="toutes">Toutes</button>
@@ -523,6 +524,13 @@ async function init() {
   var resultats = await Promise.all([
     api("/api/biens"), api("/api/favoris"), api("/api/discarded"), api("/api/preferences"),
   ]);
+  api("/api/stats").then(function (s) {
+    if (s && s.derniere_collecte) {
+      var d = new Date(s.derniere_collecte);
+      document.getElementById("derniere-maj").textContent =
+        "Mis à jour le " + d.toLocaleDateString("fr-CH") + " à " + d.toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" });
+    }
+  });
   etat.biens = resultats[0];
   etat.favoris = new Set(resultats[1]);
   etat.discarded = new Set(resultats[2]);
