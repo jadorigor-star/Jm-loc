@@ -1,6 +1,6 @@
 # Collecte
 
-Exécuté le 2026-10-25T01:03:36.016Z
+Exécuté le 2026-10-25T06:00:38.839Z
 
 - Argecil: 6 annonce(s), 0 retirée(s)
 - COMPTOIR IMMOBILIER SA: 23 annonce(s), 0 retirée(s)
@@ -12,4 +12,4 @@ Exécuté le 2026-10-25T01:03:36.016Z
 - Regimo Geneve: 6 annonce(s), 0 retirée(s)
 - Regisseurs du Leman: 2 annonce(s), 0 retirée(s)
 - RÉGIE FONCIÈRE SA: 0 annonce(s), 0 retirée(s)
-- SPG: 6 annonce(s), 4 retirée(s)
+- SPG: 9 annonce(s), 5 retirée(s)
