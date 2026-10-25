@@ -1,6 +1,6 @@
 # Collecte
 
-Exécuté le 2026-10-24T23:02:37.815Z
+Exécuté le 2026-10-25T01:03:36.016Z
 
 - Argecil: 6 annonce(s), 0 retirée(s)
 - COMPTOIR IMMOBILIER SA: 23 annonce(s), 0 retirée(s)
