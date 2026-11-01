@@ -1,10 +1,10 @@
 # Collecte
 
-Exécuté le 2026-11-01T09:05:19.278Z
+Exécuté le 2026-11-01T16:40:39.743Z
 
 - Argecil: 2 annonce(s), 0 retirée(s)
 - COMPTOIR IMMOBILIER SA: 21 annonce(s), 0 retirée(s)
-- Immostreet - Canton Genève (location): 193 annonce(s), 3 retirée(s)
+- Immostreet - Canton Genève (location): 194 annonce(s), 19 retirée(s)
 - LES RÉGISSEURS ASSOCIÉS SA: 6 annonce(s), 0 retirée(s)
 - NAEF IMMOBILIER Genève SA: 67 annonce(s), 0 retirée(s)
 - Progrimm: 3 annonce(s), 0 retirée(s)
